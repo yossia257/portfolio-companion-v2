@@ -22,7 +22,10 @@ export default function App() {
   async function sendMagicLink(e: React.FormEvent) {
     e.preventDefault()
     setLoading(true)
-    await supabase.auth.signInWithOtp({ email })
+    await supabase.auth.signInWithOtp({
+      email,
+      options: { emailRedirectTo: window.location.origin },
+    })
     setSubmitted(true)
     setLoading(false)
   }
