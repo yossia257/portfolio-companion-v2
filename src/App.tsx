@@ -1,19 +1,24 @@
 import { useEffect, useState } from 'react'
 import type { Session } from '@supabase/supabase-js'
 import { supabase } from './lib/supabase'
+import MainPage from './pages/MainPage'
+import UploadPage from './pages/UploadPage'
+
+type Page = 'main' | 'upload'
 
 export default function App() {
   const [session, setSession] = useState<Session | null>(null)
   const [email, setEmail] = useState('')
   const [submitted, setSubmitted] = useState(false)
   const [loading, setLoading] = useState(false)
+  const [page, setPage] = useState<Page>('main')
 
-  // Restore session on mount and listen for auth changes (covers magic-link redirect)
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => setSession(data.session))
 
     const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session)
+      setPage('main') // reset to main on any auth change
     })
 
     return () => listener.subscription.unsubscribe()
@@ -40,38 +45,28 @@ export default function App() {
     setLoading(false)
   }
 
-  async function signOut() {
-    await supabase.auth.signOut()
+  // Logged-in routing
+  if (session) {
+    if (page === 'upload') {
+      return <UploadPage onBack={() => setPage('main')} />
+    }
+    return <MainPage session={session} onNavigateUpload={() => setPage('upload')} />
   }
 
+  // Logged-out: login form (unchanged)
   return (
     <div className="min-h-screen bg-gray-950 flex flex-col items-center justify-center px-4">
       <h1 className="text-4xl font-bold text-white mb-10">
         Portfolio Companion — v2
       </h1>
 
-      {session ? (
-        // Logged-in view
-        <div className="flex flex-col items-center gap-6">
-          <p className="text-xl text-gray-300">
-            Hello, <span className="text-white font-semibold">{session.user.email}</span>
-          </p>
-          <button
-            onClick={signOut}
-            className="px-6 py-2 rounded-lg bg-gray-800 text-gray-200 hover:bg-gray-700 transition-colors"
-          >
-            Sign out
-          </button>
-        </div>
-      ) : submitted ? (
-        // Post-submit confirmation
+      {submitted ? (
         <p className="text-gray-400 text-lg">
           Check your inbox at <span className="text-white font-medium">{email}</span>
         </p>
       ) : (
-        // Logged-out view
         <div className="flex flex-col items-center gap-4 w-full max-w-sm">
-          {/* Google OAuth button */}
+          {/* Google OAuth */}
           <button
             onClick={signInWithGoogle}
             className="w-full flex items-center justify-center gap-3 px-6 py-3 rounded-lg bg-white text-gray-800 font-semibold hover:bg-gray-100 transition-colors shadow-sm"
@@ -92,7 +87,7 @@ export default function App() {
             <div className="flex-1 h-px bg-gray-700" />
           </div>
 
-          {/* Magic link form */}
+          {/* Magic link */}
           <form onSubmit={sendMagicLink} className="flex flex-col items-center gap-4 w-full">
             <input
               type="email"
