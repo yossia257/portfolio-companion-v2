@@ -352,7 +352,7 @@ export default function MainPage({
 
               {/* Total Value */}
               <div className="bg-gray-900 border border-gray-800 rounded-xl px-5 py-4">
-                <p className="text-xs text-gray-500 uppercase tracking-wider mb-1">Total Value (NIS)</p>
+                <p className="text-xs text-gray-500 uppercase tracking-wider mb-1">Total Value ({profile?.display_currency ?? 'NIS'})</p>
                 {pricesLoading && totalNis == null ? (
                   <div className="h-7 w-28 rounded bg-gray-800 animate-pulse mt-1" />
                 ) : (
@@ -422,7 +422,7 @@ export default function MainPage({
                       <th className="px-4 py-3 text-right font-medium">Buy Price</th>
                       <th className="px-4 py-3 text-right font-medium">Current Price</th>
                       <th className="px-4 py-3 text-right font-medium">Daily %</th>
-                      <th className="px-4 py-3 text-right font-medium">Total (NIS)</th>
+                      <th className="px-4 py-3 text-right font-medium">Total ({profile?.display_currency ?? 'NIS'})</th>
                       <th className="px-4 py-3 text-right font-medium">P&amp;L %</th>
                     </tr>
                   </thead>
