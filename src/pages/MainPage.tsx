@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { Session } from '@supabase/supabase-js'
 import { supabase } from '../lib/supabase'
-import { refreshPrices, fetchUsdToNis, type PriceMap, type MarketData } from '../lib/prices'
+import { refreshPrices, fetchUsdToNis, type PriceMap, type PriceEntry, type MarketData } from '../lib/prices'
 import TickerBar from '../components/TickerBar'
 
 // ── Types ──────────────────────────────────────────────────────────────────
@@ -51,27 +51,29 @@ function fmtTime(d: Date): string {
 
 // ── Per-holding calculations ───────────────────────────────────────────────
 
-function currentPrice(h: Holding, prices: PriceMap): number | null {
-  const ccy = h.currency?.toUpperCase()
-  if (ccy === 'USD') return prices[h.ticker]?.price ?? null
-  return null // NIS: no live price
+function liveEntry(h: Holding, prices: PriceMap): PriceEntry | null {
+  const e = prices[h.ticker]
+  if (!e || 'error' in e) return null
+  return e
 }
+
 
 function nisValue(h: Holding, prices: PriceMap, usdNis: number | null): number | null {
   const qty = h.quantity != null ? Number(h.quantity) : null
   if (qty == null || isNaN(qty)) return null
 
+  const live = liveEntry(h, prices)?.price ?? null
   const ccy = h.currency?.toUpperCase()
 
   if (ccy === 'USD') {
-    const p = prices[h.ticker]?.price
-    if (p == null || usdNis == null) return null
-    return qty * p * usdNis
+    if (live == null || usdNis == null) return null
+    return qty * live * usdNis
   }
   if (ccy === 'NIS') {
+    if (live != null) return qty * live // live price from yahoo-proxy (.TA)
     const bp = h.buy_price != null ? Number(h.buy_price) : null
     if (bp == null || isNaN(bp)) return null
-    return qty * bp
+    return qty * bp // book fallback for IL-* pseudo-tickers
   }
   return null
 }
@@ -79,11 +81,9 @@ function nisValue(h: Holding, prices: PriceMap, usdNis: number | null): number |
 function pnlPct(h: Holding, prices: PriceMap): number | null {
   const buy = h.buy_price != null ? Number(h.buy_price) : null
   if (buy == null || buy === 0 || isNaN(buy)) return null
-  const ccy = h.currency?.toUpperCase()
-  if (ccy !== 'USD') return null // NIS: no live price to compare against
-  const cur = prices[h.ticker]?.price
-  if (cur == null) return null
-  return ((cur - buy) / buy) * 100
+  const live = liveEntry(h, prices)?.price ?? null
+  if (live == null) return null
+  return ((live - buy) / buy) * 100
 }
 
 function pnlColor(v: number | null): string {
@@ -136,21 +136,16 @@ export default function MainPage({
     lastUpdatedRef.current = lastUpdated
   }, [lastUpdated])
 
-  // Fetches prices for all USD tickers in holdingsList + the USD/NIS FX rate.
+  // Fetches prices for ALL tickers in holdingsList + the USD/NIS FX rate.
+  // The backend partitions USD / .TA / IL-* internally.
   // Safe to call multiple times; used both on mount and by the Refresh button.
   async function doRefreshPrices(holdingsList: Holding[]) {
-    const usdTickers = [
-      ...new Set(
-        holdingsList
-          .filter((h) => h.currency?.toUpperCase() === 'USD' && h.ticker)
-          .map((h) => h.ticker)
-      ),
-    ]
+    const allTickers = [...new Set(holdingsList.filter((h) => h.ticker).map((h) => h.ticker))]
 
     setPricesLoading(true)
 
     const [priceOutcome, fxOutcome] = await Promise.allSettled([
-      refreshPrices(usdTickers), // always call — market tickers returned regardless
+      refreshPrices(allTickers), // always call — market tickers returned regardless
       fetchUsdToNis(),
     ])
 
@@ -433,12 +428,18 @@ export default function MainPage({
                   </thead>
                   <tbody>
                     {list.map((h, i) => {
-                      const isUsd = h.currency?.toUpperCase() === 'USD'
-                      const isNis = h.currency?.toUpperCase() === 'NIS'
-                      const cur = currentPrice(h, prices)
-                      const daily = isUsd ? (prices[h.ticker]?.daily_change_pct ?? null) : null
-                      const total = nisValue(h, prices, usdNis)
-                      const pnl = pnlPct(h, prices)
+                      const isUsd    = h.currency?.toUpperCase() === 'USD'
+                      const isNis    = h.currency?.toUpperCase() === 'NIS'
+                      const ccySym   = isUsd ? '$' : isNis ? '₪' : ''
+                      const entry    = prices[h.ticker]           // PriceEntry | ErrorEntry | undefined
+                      const hasLive  = entry != null && !('error' in entry)
+                      const isNoData = entry != null && 'error' in entry
+                      const cur      = hasLive ? (entry as PriceEntry).price : null
+                      const daily    = hasLive ? (entry as PriceEntry).daily_change_pct : null
+                      const total    = nisValue(h, prices, usdNis)
+                      const pnl      = pnlPct(h, prices)
+                      // Show spinner only while fetching and no answer yet for this ticker
+                      const waiting  = pricesLoading && entry == null
 
                       return (
                         <tr
@@ -462,22 +463,19 @@ export default function MainPage({
                             {fmtQty(h.quantity)}
                           </td>
 
-                          {/* Buy Price */}
+                          {/* Buy Price — show currency symbol */}
                           <td className="px-4 py-3 text-right text-gray-200 tabular-nums">
-                            {fmtPrice(h.buy_price)}
+                            {h.buy_price != null ? `${ccySym}${fmtPrice(h.buy_price)}` : '—'}
                           </td>
 
                           {/* Current Price */}
                           <td className="px-4 py-3 text-right tabular-nums">
-                            {isUsd && pricesLoading && cur == null ? (
+                            {waiting ? (
                               <Pulse />
-                            ) : isUsd && cur != null ? (
-                              <span className="text-white">{fmtPrice(cur)}</span>
-                            ) : isNis ? (
-                              <span className="text-gray-500">
-                                {fmtPrice(h.buy_price)}{' '}
-                                <span className="text-xs text-gray-700">book</span>
-                              </span>
+                            ) : cur != null ? (
+                              <span className="text-white">{ccySym}{fmtPrice(cur)}</span>
+                            ) : isNoData ? (
+                              <span className="text-xs text-gray-600">no live data</span>
                             ) : (
                               <span className="text-gray-600">—</span>
                             )}
@@ -485,7 +483,7 @@ export default function MainPage({
 
                           {/* Daily % */}
                           <td className="px-4 py-3 text-right tabular-nums">
-                            {isUsd && pricesLoading && daily == null ? (
+                            {waiting ? (
                               <Pulse />
                             ) : daily != null ? (
                               <span className={pnlColor(daily)}>{fmtPct(daily)}</span>
@@ -496,7 +494,7 @@ export default function MainPage({
 
                           {/* Total NIS */}
                           <td className="px-4 py-3 text-right tabular-nums">
-                            {pricesLoading && total == null && isUsd ? (
+                            {waiting ? (
                               <Pulse />
                             ) : total != null ? (
                               <span className="text-gray-200">{fmtNis(total)}</span>
@@ -507,12 +505,12 @@ export default function MainPage({
 
                           {/* P&L % */}
                           <td className="px-4 py-3 text-right tabular-nums">
-                            {isUsd && pricesLoading && pnl == null ? (
+                            {waiting ? (
                               <Pulse />
                             ) : pnl != null ? (
                               <span className={`font-medium ${pnlColor(pnl)}`}>{fmtPct(pnl)}</span>
-                            ) : isNis ? (
-                              <span className="text-xs text-gray-700">no live price</span>
+                            ) : isNoData ? (
+                              <span className="text-xs text-gray-600">no live data</span>
                             ) : (
                               <span className="text-gray-600">—</span>
                             )}
@@ -528,7 +526,7 @@ export default function MainPage({
             {/* FX footnote */}
             {usdNis != null && (
               <p className="mt-3 text-xs text-gray-600">
-                USD/NIS rate: {usdNis.toFixed(4)} · NIS holdings use book price (no live IL data until Sprint 5)
+                USD/NIS rate: {usdNis.toFixed(4)} · IL-* fund tickers show book price (no Yahoo symbol available)
               </p>
             )}
           </>
