@@ -8,6 +8,7 @@ const CORS = {
 }
 
 const CACHE_TTL_MS = 15 * 60 * 1000 // 15 minutes
+const MARKET_TICKERS = ['SPY', 'QQQ', 'PANW'] as const
 
 // Module-level clients — created once per cold start, reused across invocations.
 const supabase = createClient(
@@ -46,22 +47,21 @@ Deno.serve(async (req) => {
       ? body.tickers.filter((t: unknown) => typeof t === 'string' && t.trim().length > 0)
       : []
 
-    if (tickers.length === 0) {
-      return json({ error: 'tickers must be a non-empty array of strings' }, 400)
-    }
-
     if (!FINNHUB_KEY) {
       return json({ error: 'FINNHUB_API_KEY secret is not set' }, 500)
     }
 
-    // ── Step 1: Read cache — one query for all requested tickers ────────────
+    // Merge client tickers with the fixed market tickers, deduplicating.
+    // MARKET_TICKERS are always fetched regardless of what the client sent.
+    const allTickers = [...new Set([...tickers, ...MARKET_TICKERS])]
+
+    // ── Step 1: Read cache — one query for all tickers ───────────────────────
     const { data: cachedRows } = await supabase
       .from('price_cache')
       .select('ticker, price, daily_change_pct, fetched_at')
-      .in('ticker', tickers)
+      .in('ticker', allTickers)
 
     const now = Date.now()
-    // Map of ticker → fresh cached value
     const freshCache = new Map<string, { price: number; daily_change_pct: number }>()
 
     for (const row of cachedRows ?? []) {
@@ -75,7 +75,7 @@ Deno.serve(async (req) => {
     }
 
     // ── Step 2: Identify stale/missing tickers ───────────────────────────────
-    const stale = tickers.filter((t) => !freshCache.has(t))
+    const stale = allTickers.filter((t) => !freshCache.has(t))
 
     // ── Step 3: Fetch stale tickers from Finnhub in parallel ────────────────
     if (stale.length > 0) {
@@ -122,14 +122,24 @@ Deno.serve(async (req) => {
       }
     }
 
-    // ── Step 5: Build and return response ───────────────────────────────────
+    // ── Step 5: Split freshCache into portfolio prices vs. market strip ───────
+    // market: always SPY, QQQ, PANW (absent if both cache and Finnhub failed)
+    // prices: only the tickers the client originally requested
+    // If a client ticker overlaps with MARKET_TICKERS (e.g. user holds PANW),
+    // it appears in both — prices drives P&L in the table, market drives the strip.
     const prices: Record<string, { price: number; daily_change_pct: number }> = {}
-    for (const [ticker, data] of freshCache) {
-      prices[ticker] = data
+    for (const ticker of tickers) {
+      const entry = freshCache.get(ticker)
+      if (entry) prices[ticker] = entry
     }
-    // Tickers that failed both cache and Finnhub are simply absent from the response.
 
-    return json({ prices })
+    const market: Record<string, { price: number; daily_change_pct: number }> = {}
+    for (const ticker of MARKET_TICKERS) {
+      const entry = freshCache.get(ticker)
+      if (entry) market[ticker] = entry
+    }
+
+    return json({ prices, market })
   } catch (err) {
     console.error('refresh-prices unhandled error:', err)
     return json({ error: String(err) }, 500)

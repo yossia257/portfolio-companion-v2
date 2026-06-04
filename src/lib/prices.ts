@@ -1,13 +1,22 @@
 import { supabase } from './supabase'
 
-export type PriceMap = Record<string, { price: number; daily_change_pct: number }>
+export type PriceMap   = Record<string, { price: number; daily_change_pct: number }>
+export type MarketData = Record<string, { price: number; daily_change_pct: number }>
 
-export async function refreshPrices(tickers: string[]): Promise<PriceMap> {
+export interface PriceResponse {
+  prices: PriceMap
+  market: MarketData
+}
+
+export async function refreshPrices(tickers: string[]): Promise<PriceResponse> {
   const { data, error } = await supabase.functions.invoke('refresh-prices', {
     body: { tickers },
   })
   if (error) throw error
-  return (data?.prices ?? {}) as PriceMap
+  return {
+    prices: (data?.prices ?? {}) as PriceMap,
+    market: (data?.market ?? {}) as MarketData,
+  }
 }
 
 export async function fetchUsdToNis(): Promise<number> {

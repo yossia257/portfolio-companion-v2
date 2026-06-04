@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import type { Session } from '@supabase/supabase-js'
 import { supabase } from '../lib/supabase'
-import { refreshPrices, fetchUsdToNis, type PriceMap } from '../lib/prices'
+import { refreshPrices, fetchUsdToNis, type PriceMap, type MarketData } from '../lib/prices'
+import TickerBar from '../components/TickerBar'
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -112,6 +113,7 @@ export default function MainPage({
   const [holdings, setHoldings] = useState<Holding[] | null>(null)
 
   const [prices, setPrices] = useState<PriceMap>({})
+  const [market, setMarket] = useState<MarketData>({})
   const [usdNis, setUsdNis] = useState<number | null>(null)
   const [pricesLoading, setPricesLoading] = useState(false)
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null)
@@ -126,9 +128,7 @@ export default function MainPage({
   // Keep doRefreshRef pointing at the latest doRefreshPrices + holdings closure.
   // No dependency array: runs after every render so the ref is always fresh.
   useEffect(() => {
-    doRefreshRef.current = () => {
-      if (holdings && holdings.length > 0) doRefreshPrices(holdings)
-    }
+    doRefreshRef.current = () => doRefreshPrices(holdings ?? [])
   })
 
   // Keep lastUpdatedRef in sync for stale-check inside visibilitychange.
@@ -150,12 +150,13 @@ export default function MainPage({
     setPricesLoading(true)
 
     const [priceOutcome, fxOutcome] = await Promise.allSettled([
-      usdTickers.length > 0 ? refreshPrices(usdTickers) : Promise.resolve({} as PriceMap),
+      refreshPrices(usdTickers), // always call — market tickers returned regardless
       fetchUsdToNis(),
     ])
 
     if (priceOutcome.status === 'fulfilled') {
-      setPrices(priceOutcome.value)
+      setPrices(priceOutcome.value.prices)
+      setMarket(priceOutcome.value.market)
       setLastUpdated(new Date())
     } else {
       console.error('Price refresh failed:', priceOutcome.reason)
@@ -198,6 +199,7 @@ export default function MainPage({
       if (!portfolio) {
         setHoldings(null)
         setLoading(false)
+        if (!cancelled) doRefreshPrices([]) // still fetch market strip + FX rate
         return
       }
 
@@ -273,8 +275,9 @@ export default function MainPage({
   return (
     <div className="min-h-screen bg-gray-950 text-white flex flex-col">
 
-      {/* ── Header ── */}
-      <header className="border-b border-gray-800 px-6 py-4 flex items-center justify-between shrink-0">
+      {/* ── Sticky chrome: header + ticker bar ── */}
+      <div className="sticky top-0 z-20">
+      <header className="bg-gray-950 border-b border-gray-800 px-6 py-4 flex items-center justify-between">
         <h1 className="text-lg font-semibold tracking-tight">Portfolio Companion</h1>
         <div className="flex items-center gap-3">
           {(pricesLoading || lastUpdated) && (
@@ -312,6 +315,8 @@ export default function MainPage({
           </button>
         </div>
       </header>
+      <TickerBar usdNis={usdNis} market={market} lastUpdated={lastUpdated} />
+      </div>{/* end sticky wrapper */}
 
       {/* ── Body ── */}
       <main className="flex-1 px-6 py-8 max-w-7xl w-full mx-auto">
