@@ -94,6 +94,69 @@ function pnlColor(v: number | null): string {
   return 'text-gray-400'
 }
 
+// ── Sort types ────────────────────────────────────────────────────────────
+
+type SortCol =
+  | 'ticker' | 'name' | 'qty' | 'buy_price'
+  | 'cur_price' | 'daily_pct' | 'pre_price' | 'pre_pct'
+  | 'total_nis' | 'pnl_pct'
+type SortDir = 'asc' | 'desc'
+const SORT_LS_KEY = 'holdings_sort'
+
+function readSortState(): { column: SortCol; direction: SortDir } {
+  try {
+    const v = JSON.parse(localStorage.getItem(SORT_LS_KEY) ?? '{}')
+    return { column: v.column ?? 'total_nis', direction: v.direction ?? 'desc' }
+  } catch {
+    return { column: 'total_nis', direction: 'desc' }
+  }
+}
+
+function getColumnValue(h: Holding, col: SortCol, prices: PriceMap, usdNis: number | null): number | string | null {
+  switch (col) {
+    case 'ticker': return h.ticker ?? null
+    case 'name': return h.name ?? null
+    case 'qty': return h.quantity != null ? Number(h.quantity) : null
+    case 'buy_price': return h.buy_price != null ? Number(h.buy_price) : null
+    case 'cur_price': {
+      const entry = prices[h.ticker]
+      return entry != null && !('error' in entry) ? (entry as PriceEntry).price : null
+    }
+    case 'daily_pct': {
+      const entry = prices[h.ticker]
+      return entry != null && !('error' in entry) ? (entry as PriceEntry).daily_change_pct : null
+    }
+    case 'pre_price': {
+      const entry = prices[h.ticker]
+      return entry != null && !('error' in entry) ? ((entry as PriceEntry).pre_market_price ?? null) : null
+    }
+    case 'pre_pct': {
+      const entry = prices[h.ticker]
+      return entry != null && !('error' in entry) ? ((entry as PriceEntry).pre_market_change_pct ?? null) : null
+    }
+    case 'total_nis': return nisValue(h, prices, usdNis)
+    case 'pnl_pct': return pnlPct(h, prices)
+  }
+}
+
+function compareValues(aVal: number | string | null, bVal: number | string | null, direction: SortDir): number {
+  // Nulls last in both ascending and descending
+  if (aVal == null && bVal == null) return 0
+  if (aVal == null) return 1
+  if (bVal == null) return -1
+
+  const isNum = typeof aVal === 'number'
+  let cmp: number
+
+  if (isNum) {
+    cmp = (aVal as number) - (bVal as number)
+  } else {
+    cmp = (aVal as string).localeCompare(bVal as string)
+  }
+
+  return direction === 'asc' ? cmp : -cmp
+}
+
 // ── Spinner ────────────────────────────────────────────────────────────────
 
 function Pulse() {
@@ -122,6 +185,8 @@ export default function MainPage({
   const [usdNis, setUsdNis] = useState<number | null>(null)
   const [pricesLoading, setPricesLoading] = useState(false)
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null)
+
+  const [sortState, setSortState] = useState(() => readSortState())
 
   const REFRESH_MS = 60 * 60 * 1000 // 60 minutes
 
@@ -248,12 +313,19 @@ export default function MainPage({
 
   // ── Derived KPI values ───────────────────────────────────────────────────
 
-  const list = holdings ?? []
+  const rawList = holdings ?? []
+  const list = rawList.length > 0
+    ? rawList.slice().sort((a, b) => {
+        const aVal = getColumnValue(a, sortState.column, prices, usdNis)
+        const bVal = getColumnValue(b, sortState.column, prices, usdNis)
+        return compareValues(aVal, bVal, sortState.direction)
+      })
+    : []
 
   let totalNis: number | null = null
   const performers: { ticker: string; pnl: number }[] = []
 
-  for (const h of list) {
+  for (const h of rawList) {
     const v = nisValue(h, prices, usdNis)
     if (v != null) totalNis = (totalNis ?? 0) + v
     const pnl = pnlPct(h, prices)
@@ -272,6 +344,20 @@ export default function MainPage({
   })
 
   // ── Helpers ──────────────────────────────────────────────────────────────
+
+  function handleSortClick(col: SortCol) {
+    const current = sortState
+    let newState: { column: SortCol; direction: SortDir }
+
+    if (current.column === col) {
+      newState = { column: col, direction: current.direction === 'asc' ? 'desc' : 'asc' }
+    } else {
+      newState = { column: col, direction: 'asc' }
+    }
+
+    setSortState(newState)
+    localStorage.setItem(SORT_LS_KEY, JSON.stringify(newState))
+  }
 
   async function signOut() {
     await supabase.auth.signOut()
@@ -435,16 +521,70 @@ export default function MainPage({
                 <table className="w-full text-sm">
                   <thead className="bg-gray-900 text-gray-400">
                     <tr>
-                      <th className="px-4 py-3 text-left font-medium">Ticker</th>
-                      <th className="px-4 py-3 text-left font-medium">Name</th>
-                      <th className="px-4 py-3 text-right font-medium">Qty</th>
-                      <th className="px-4 py-3 text-right font-medium">Buy Price</th>
-                      <th className="px-4 py-3 text-right font-medium">Current Price</th>
-                      <th className="px-4 py-3 text-right font-medium">Daily %</th>
-                      {showPreMarket && <th className="px-4 py-3 text-right font-medium">Pre-Market</th>}
-                      {showPreMarket && <th className="px-4 py-3 text-right font-medium">Pre-Mkt %</th>}
-                      <th className="px-4 py-3 text-right font-medium">Total ({profile?.display_currency ?? 'NIS'})</th>
-                      <th className="px-4 py-3 text-right font-medium">P&amp;L %</th>
+                      <th
+                        className="px-4 py-3 text-left font-medium cursor-pointer hover:text-white transition-colors"
+                        onClick={() => handleSortClick('ticker')}
+                      >
+                        Ticker {sortState.column === 'ticker' && (sortState.direction === 'asc' ? '▲' : '▼')}
+                      </th>
+                      <th
+                        className="px-4 py-3 text-left font-medium cursor-pointer hover:text-white transition-colors"
+                        onClick={() => handleSortClick('name')}
+                      >
+                        Name {sortState.column === 'name' && (sortState.direction === 'asc' ? '▲' : '▼')}
+                      </th>
+                      <th
+                        className="px-4 py-3 text-right font-medium cursor-pointer hover:text-white transition-colors"
+                        onClick={() => handleSortClick('qty')}
+                      >
+                        Qty {sortState.column === 'qty' && (sortState.direction === 'asc' ? '▲' : '▼')}
+                      </th>
+                      <th
+                        className="px-4 py-3 text-right font-medium cursor-pointer hover:text-white transition-colors"
+                        onClick={() => handleSortClick('buy_price')}
+                      >
+                        Buy Price {sortState.column === 'buy_price' && (sortState.direction === 'asc' ? '▲' : '▼')}
+                      </th>
+                      <th
+                        className="px-4 py-3 text-right font-medium cursor-pointer hover:text-white transition-colors"
+                        onClick={() => handleSortClick('cur_price')}
+                      >
+                        Current Price {sortState.column === 'cur_price' && (sortState.direction === 'asc' ? '▲' : '▼')}
+                      </th>
+                      <th
+                        className="px-4 py-3 text-right font-medium cursor-pointer hover:text-white transition-colors"
+                        onClick={() => handleSortClick('daily_pct')}
+                      >
+                        Daily % {sortState.column === 'daily_pct' && (sortState.direction === 'asc' ? '▲' : '▼')}
+                      </th>
+                      {showPreMarket && (
+                        <th
+                          className="px-4 py-3 text-right font-medium cursor-pointer hover:text-white transition-colors"
+                          onClick={() => handleSortClick('pre_price')}
+                        >
+                          Pre-Market {sortState.column === 'pre_price' && (sortState.direction === 'asc' ? '▲' : '▼')}
+                        </th>
+                      )}
+                      {showPreMarket && (
+                        <th
+                          className="px-4 py-3 text-right font-medium cursor-pointer hover:text-white transition-colors"
+                          onClick={() => handleSortClick('pre_pct')}
+                        >
+                          Pre-Mkt % {sortState.column === 'pre_pct' && (sortState.direction === 'asc' ? '▲' : '▼')}
+                        </th>
+                      )}
+                      <th
+                        className="px-4 py-3 text-right font-medium cursor-pointer hover:text-white transition-colors"
+                        onClick={() => handleSortClick('total_nis')}
+                      >
+                        Total ({profile?.display_currency ?? 'NIS'}) {sortState.column === 'total_nis' && (sortState.direction === 'asc' ? '▲' : '▼')}
+                      </th>
+                      <th
+                        className="px-4 py-3 text-right font-medium cursor-pointer hover:text-white transition-colors"
+                        onClick={() => handleSortClick('pnl_pct')}
+                      >
+                        P&amp;L % {sortState.column === 'pnl_pct' && (sortState.direction === 'asc' ? '▲' : '▼')}
+                      </th>
                     </tr>
                   </thead>
                   <tbody>

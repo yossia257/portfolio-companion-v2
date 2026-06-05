@@ -117,18 +117,50 @@ Deno.serve(async (req) => {
           }
 
           const meta = data.chart.result[0].meta
+          const result = data.chart.result[0]
 
           const rawCurrent: number  = meta.regularMarketPrice
-          const rawPrevious: number = meta.previousClose ?? meta.chartPreviousClose ?? 0
-
           if (!rawCurrent) throw new Error(`regularMarketPrice missing for ${ticker}`)
 
           // .TA prices are in Agorot (1/100 NIS); USD prices are already in dollars.
           const divisor = isTA ? 100 : 1
-          const price          = rawCurrent  / divisor
-          const daily_change_pct = rawPrevious
-            ? ((rawCurrent - rawPrevious) / rawPrevious) * 100
-            : 0
+          const price = rawCurrent / divisor
+
+          // Extract yesterday's close from candles for accurate daily change.
+          // NEVER use chartPreviousClose (it's from chart range start, not previous trading day)
+          let daily_change_pct = 0
+
+          // Try to get closes from indicators
+          const indicators = result.indicators
+          const quoteArray = indicators?.quote
+          const quote = Array.isArray(quoteArray) ? quoteArray[0] : null
+          const closes = quote?.close
+
+          if (Array.isArray(closes) && closes.length >= 2) {
+            // Use actual candle data: today vs yesterday
+            const yesterClose = closes[closes.length - 2]
+            const todayClose = closes[closes.length - 1]
+
+            if (yesterClose != null && todayClose != null && yesterClose !== 0) {
+              daily_change_pct = ((todayClose - yesterClose) / yesterClose) * 100
+              console.error(
+                `[yahoo-proxy] ${ticker}: candles (${closes.length}) ` +
+                `[${yesterClose.toFixed(2)}, ${todayClose.toFixed(2)}] → ${daily_change_pct.toFixed(2)}%`
+              )
+            } else {
+              console.error(`[yahoo-proxy] ${ticker}: closes found but values null/zero, using fallback`)
+              if (meta.previousClose != null && meta.previousClose !== 0) {
+                daily_change_pct = ((rawCurrent - meta.previousClose) / meta.previousClose) * 100
+              }
+            }
+          } else {
+            // No valid closes array
+            console.error(`[yahoo-proxy] ${ticker}: no closes array (indicators=${!!indicators} quote=${!!quoteArray} quote[0]=${!!quote} close=${typeof closes} len=${Array.isArray(closes) ? closes.length : 'N/A'})`)
+            if (meta.previousClose != null && meta.previousClose !== 0) {
+              daily_change_pct = ((rawCurrent - meta.previousClose) / meta.previousClose) * 100
+              console.error(`[yahoo-proxy] ${ticker}: using previousClose=${meta.previousClose} → ${daily_change_pct.toFixed(2)}%`)
+            }
+          }
 
           // Pre-market enrichment — present when marketState === 'PRE'.
           // preMarketPrice for .TA would also need Agorot conversion, but
@@ -139,11 +171,16 @@ Deno.serve(async (req) => {
             ? rawPreMarket / divisor
             : null
 
-          // Compute pct change relative to previous close for consistency.
-          const pre_market_change_pct =
-            rawPreMarket != null && rawPrevious !== 0
-              ? ((rawPreMarket - rawPrevious) / rawPrevious) * 100
-              : null
+          // Pre-market change relative to yesterday's close (use candle close, not chartPreviousClose).
+          let pre_market_change_pct: number | null = null
+          if (rawPreMarket != null && Array.isArray(closes) && closes.length >= 2) {
+            const yesterClose = closes[closes.length - 2]
+            if (yesterClose != null && yesterClose !== 0) {
+              pre_market_change_pct = ((rawPreMarket - yesterClose) / yesterClose) * 100
+            }
+          } else if (rawPreMarket != null && meta.previousClose != null && meta.previousClose !== 0) {
+            pre_market_change_pct = ((rawPreMarket - meta.previousClose) / meta.previousClose) * 100
+          }
 
           const market_state: string | null = meta.marketState ?? null
 

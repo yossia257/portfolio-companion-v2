@@ -7,9 +7,10 @@ const CORS = {
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 }
 
-const CACHE_TTL_MS  = 24 * 60 * 60 * 1000
-const YAHOO_UA      = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15'
+const CACHE_TTL_MS = 24 * 60 * 60 * 1000
+const YAHOO_UA     = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15'
 
+// Service-role client — used for all DB writes and for auth.getUser(jwt) verification.
 const supabase = createClient(
   Deno.env.get('SUPABASE_URL')!,
   Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
@@ -19,6 +20,15 @@ const supabase = createClient(
 const FINNHUB_KEY   = Deno.env.get('FINNHUB_API_KEY')   ?? ''
 const ANTHROPIC_KEY = Deno.env.get('ANTHROPIC_API_KEY') ?? ''
 
+// Language code → Claude instruction appended to the prompt
+const LANG_INSTRUCTIONS: Record<string, string> = {
+  en: 'Respond in English.',
+  he: 'Respond in Hebrew (עברית).',
+  es: 'Respond in Spanish.',
+  de: 'Respond in German.',
+  fr: 'Respond in French.',
+}
+
 // ── Technical indicator helpers ────────────────────────────────────────────
 
 function computeMA(closes: number[], period: number): number | null {
@@ -27,7 +37,6 @@ function computeMA(closes: number[], period: number): number | null {
   return slice.reduce((s, c) => s + c, 0) / period
 }
 
-// Simple (non-smoothed) 14-period RSI using arithmetic average of gains/losses.
 function computeRSI(closes: number[], period = 14): number | null {
   if (closes.length < period + 1) return null
   const relevant = closes.slice(-(period + 1))
@@ -78,9 +87,36 @@ Deno.serve(async (req) => {
     if (!FINNHUB_KEY) return json({ error: 'FINNHUB_API_KEY not set' }, 500)
 
     const force = (body as any)?.force === true
-    console.error(`[fetch-research] processing: ${ticker} force=${force}`)
+
+    // ── Resolve user's preferred language from their profile ─────────────────
+    // Extract JWT from Authorization header, validate it via Supabase auth,
+    // then query the user's profile with the service-role client.
+    // Default to 'en' if anything fails — language is a best-effort feature.
+    let language = 'en'
+    try {
+      const jwt = req.headers.get('Authorization')?.replace(/^Bearer\s+/i, '').trim() ?? ''
+      if (jwt) {
+        const { data: { user }, error: userErr } = await supabase.auth.getUser(jwt)
+        if (userErr) {
+          console.error('[fetch-research] getUser error:', userErr.message)
+        } else if (user) {
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('ai_response_language')
+            .eq('id', user.id)
+            .single()
+          language = profile?.ai_response_language ?? 'en'
+        }
+      }
+    } catch (e) {
+      console.error('[fetch-research] language resolution failed:', e)
+    }
+    console.error(`[fetch-research] processing: ${ticker}  language=${language}  force=${force}`)
 
     // ── Cache check ─────────────────────────────────────────────────────────
+    // Market data freshness: cached.fetched_at < 24h
+    // Summary freshness:     ai_summaries[language].at < 24h
+    // Both must be true for a cache hit.
     const { data: cached } = await supabase
       .from('ticker_research_cache')
       .select('*')
@@ -88,43 +124,48 @@ Deno.serve(async (req) => {
       .maybeSingle()
 
     if (!force && cached) {
-      const ageMs = Date.now() - new Date(cached.fetched_at).getTime()
-      if (ageMs < CACHE_TTL_MS && cached.ai_summary != null) {
-        console.error(`[fetch-research] cache hit for ${ticker} (${Math.round(ageMs / 60000)} min old)`)
-        return json({ research: cached })
+      const dataAgeMs = Date.now() - new Date(cached.fetched_at).getTime()
+      const langEntry = (cached.ai_summaries as Record<string, any>)?.[language]
+      const langAgeMs = langEntry?.at
+        ? Date.now() - new Date(langEntry.at).getTime()
+        : Infinity
+
+      if (dataAgeMs < CACHE_TTL_MS && langAgeMs < CACHE_TTL_MS && langEntry?.text) {
+        console.error(`[fetch-research] cache hit for ${ticker}/${language} (data ${Math.round(dataAgeMs / 60000)}min, summary ${Math.round(langAgeMs / 60000)}min)`)
+        return json({
+          research: {
+            ...cached,
+            ai_summary:    langEntry.text,
+            ai_summary_at: langEntry.at,
+          },
+          language,
+        })
       }
-      console.error(`[fetch-research] cache miss — stale or no ai_summary`)
+      console.error(`[fetch-research] cache miss for ${ticker}/${language}`)
     }
 
     // ── Fetch all external data in parallel ─────────────────────────────────
-    // Four sources run concurrently; Promise.allSettled means no single failure
-    // kills the rest.
     const today = yyyymmdd(new Date())
     const from  = yyyymmdd(new Date(Date.now() - 14 * 24 * 60 * 60 * 1000))
 
     const [newsOut, analystOut, metricsOut, candleOut, profileOut] = await Promise.allSettled([
-      // 1. Finnhub: company news (last 14 days)
       fetch(
         `https://finnhub.io/api/v1/company-news?symbol=${encodeURIComponent(ticker)}&from=${from}&to=${today}&token=${FINNHUB_KEY}`
       ).then(r => { console.error(`[fetch-research] Finnhub news ${r.status}`); return r.json() }),
 
-      // 2. Finnhub: analyst recommendations
       fetch(
         `https://finnhub.io/api/v1/stock/recommendation?symbol=${encodeURIComponent(ticker)}&token=${FINNHUB_KEY}`
       ).then(r => { console.error(`[fetch-research] Finnhub analyst ${r.status}`); return r.json() }),
 
-      // 3. Finnhub: key metrics
       fetch(
         `https://finnhub.io/api/v1/stock/metric?symbol=${encodeURIComponent(ticker)}&metric=all&token=${FINNHUB_KEY}`
       ).then(r => { console.error(`[fetch-research] Finnhub metrics ${r.status}`); return r.json() }),
 
-      // 4. Yahoo Finance: 60-day daily candles (works for USD and .TA tickers)
       fetch(
         `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(ticker)}?interval=1d&range=60d`,
         { headers: { 'User-Agent': YAHOO_UA } }
       ).then(r => { console.error(`[fetch-research] Yahoo candle ${r.status}`); return r.json() }),
 
-      // 5. Finnhub: company profile (description, industry, sector)
       fetch(
         `https://finnhub.io/api/v1/stock/profile2?symbol=${encodeURIComponent(ticker)}&token=${FINNHUB_KEY}`
       ).then(r => { console.error(`[fetch-research] Finnhub profile ${r.status}`); return r.json() }),
@@ -177,7 +218,7 @@ Deno.serve(async (req) => {
       week52_high = m['52WeekHigh']             ?? null
       week52_low  = m['52WeekLow']              ?? null
       companyName = metricsOut.value.series?.annual?.currentRatioAnnual?.[0]?.value
-                    ? ticker   // series present but no name field — fall back
+                    ? ticker
                     : (metricsOut.value.metric.name ?? ticker)
       console.error(`[fetch-research] metrics: pe=${pe_ratio} beta=${beta} 52w=${week52_low}-${week52_high}`)
     } else {
@@ -192,7 +233,6 @@ Deno.serve(async (req) => {
       const raw: unknown = candleOut.value?.chart?.result?.[0]?.indicators?.quote?.[0]?.close
       if (Array.isArray(raw)) {
         let closes = raw.filter((c: unknown): c is number => typeof c === 'number' && !isNaN(c))
-        // .TA prices from Yahoo are in Agorot — convert to NIS so MA values are meaningful
         if (ticker.endsWith('.TA')) closes = closes.map(c => c / 100)
         console.error(`[fetch-research] candles: ${closes.length} closes, last=${closes.at(-1)?.toFixed(2)}`)
         ma_20  = computeMA(closes, 20)
@@ -210,15 +250,12 @@ Deno.serve(async (req) => {
     let sector:      string | null = null
     if (profileOut.status === 'fulfilled' && profileOut.value && typeof profileOut.value === 'object') {
       const p = profileOut.value as any
-      // Trim description to ~200 chars (roughly 2 lines) to keep the cache lean
       const rawDesc = p.description ?? p.longDescription ?? null
       description = typeof rawDesc === 'string' && rawDesc.length > 0
         ? rawDesc.slice(0, 200).trimEnd() + (rawDesc.length > 200 ? '…' : '')
         : null
-      // Finnhub uses finnhubIndustry; gicsSector is an alternative grouping
       industry = p.finnhubIndustry ?? p.gicsSector ?? null
       sector   = p.gicsSector ?? p.finnhubIndustry ?? null
-      // Avoid storing identical values in both columns
       if (sector === industry) sector = null
       console.error(`[fetch-research] profile: industry=${industry} sector=${sector} desc=${description?.slice(0, 50)}`)
     } else {
@@ -230,9 +267,13 @@ Deno.serve(async (req) => {
     const target_price_high: null = null
     const target_price_low:  null = null
 
-    // ── AI summary ──────────────────────────────────────────────────────────
-    let ai_summary:    string | null = null
-    let ai_summary_at: string | null = null
+    // ── AI summary (per-language) ────────────────────────────────────────────
+    // Start with whatever summaries already exist in the cache; we'll add or
+    // overwrite the entry for the requested language, leaving other languages intact.
+    const existingAiSummaries = (cached?.ai_summaries as Record<string, any>) ?? {}
+    let updatedAiSummaries    = { ...existingAiSummaries }
+    let ai_summary_text:  string | null = existingAiSummaries[language]?.text ?? null
+    let ai_summary_at:    string | null = existingAiSummaries[language]?.at   ?? null
 
     if (ANTHROPIC_KEY) {
       try {
@@ -259,14 +300,17 @@ Deno.serve(async (req) => {
           `Recent headlines:\n${newsLines}`,
         ].filter(Boolean).join('\n')
 
+        const langInstruction = LANG_INSTRUCTIONS[language] ?? LANG_INSTRUCTIONS.en
+
         const prompt =
           `You are summarizing the investment picture for ${ticker} for a sophisticated individual investor.\n\n` +
           `Write 4–6 sentences. No bullet points. No explicit buy/sell verdict. ` +
           `Synthesize: where the story stands now, what analysts and the chart agree or disagree on, ` +
           `and what is the single most important thing a current holder should watch.\n\n` +
+          `${langInstruction}\n\n` +
           `Current data:\n${context}`
 
-        console.error(`[fetch-research] calling Anthropic for ${ticker}`)
+        console.error(`[fetch-research] calling Anthropic for ${ticker} in ${language}`)
         const anthropicRes = await fetch('https://api.anthropic.com/v1/messages', {
           method: 'POST',
           headers: {
@@ -284,9 +328,17 @@ Deno.serve(async (req) => {
         console.error(`[fetch-research] Anthropic HTTP ${anthropicRes.status}`)
         if (anthropicRes.ok) {
           const anthropicData = await anthropicRes.json()
-          ai_summary    = anthropicData.content?.[0]?.text ?? null
-          ai_summary_at = new Date().toISOString()
-          console.error(`[fetch-research] AI summary: ${ai_summary?.slice(0, 80)}…`)
+          const text = anthropicData.content?.[0]?.text ?? null
+          if (text) {
+            ai_summary_text = text
+            ai_summary_at   = new Date().toISOString()
+            // Merge into the per-language map; other languages are untouched.
+            updatedAiSummaries = {
+              ...updatedAiSummaries,
+              [language]: { text, at: ai_summary_at },
+            }
+            console.error(`[fetch-research] AI summary (${language}): ${text.slice(0, 80)}…`)
+          }
         } else {
           const errBody = await anthropicRes.text()
           console.error(`[fetch-research] Anthropic error: ${errBody.slice(0, 300)}`)
@@ -319,9 +371,11 @@ Deno.serve(async (req) => {
       ma_20,
       ma_50,
       rsi_14,
-      ai_summary,
-      ai_summary_at,
-      fetched_at: new Date().toISOString(),
+      ai_summaries:  updatedAiSummaries,
+      // Legacy columns kept for schema compat; surfaced from ai_summaries below
+      ai_summary:    ai_summary_text,
+      ai_summary_at: ai_summary_at,
+      fetched_at:    new Date().toISOString(),
     }
 
     const { error: upsertErr } = await supabase
@@ -329,7 +383,7 @@ Deno.serve(async (req) => {
       .upsert(row, { onConflict: 'ticker' })
     if (upsertErr) console.error('[fetch-research] upsert error:', upsertErr.message)
 
-    return json({ research: row })
+    return json({ research: row, language })
   } catch (err) {
     const msg   = err instanceof Error ? err.message : String(err)
     const stack = err instanceof Error ? err.stack   : undefined
