@@ -3,6 +3,7 @@ import type { Session } from '@supabase/supabase-js'
 import { supabase } from '../lib/supabase'
 import { refreshPrices, fetchUsdToNis, type PriceMap, type PriceEntry, type MarketData } from '../lib/prices'
 import TickerBar from '../components/TickerBar'
+import DrillDownPanel from '../components/DrillDownPanel'
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -111,6 +112,8 @@ export default function MainPage({
   const [loading, setLoading] = useState(true)
   const [profile, setProfile] = useState<Profile | null>(null)
   const [holdings, setHoldings] = useState<Holding[] | null>(null)
+
+  const [selectedHolding, setSelectedHolding] = useState<Holding | null>(null)
 
   const [prices, setPrices] = useState<PriceMap>({})
   const [market, setMarket] = useState<MarketData>({})
@@ -444,7 +447,8 @@ export default function MainPage({
                       return (
                         <tr
                           key={h.id}
-                          className={`border-t border-gray-800 hover:bg-gray-900/50 transition-colors ${
+                          onClick={() => setSelectedHolding(h)}
+                          className={`border-t border-gray-800 hover:bg-gray-900/50 transition-colors cursor-pointer ${
                             i % 2 === 0 ? '' : 'bg-gray-900/20'
                           }`}
                         >
@@ -532,6 +536,14 @@ export default function MainPage({
           </>
         )}
       </main>
+
+      {selectedHolding && (
+        <DrillDownPanel
+          holding={selectedHolding}
+          priceEntry={prices[selectedHolding.ticker]}
+          onClose={() => setSelectedHolding(null)}
+        />
+      )}
     </div>
   )
 }

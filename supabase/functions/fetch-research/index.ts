@@ -77,7 +77,8 @@ Deno.serve(async (req) => {
     if (!ticker) return json({ error: 'ticker is required' }, 400)
     if (!FINNHUB_KEY) return json({ error: 'FINNHUB_API_KEY not set' }, 500)
 
-    console.error(`[fetch-research] processing: ${ticker}`)
+    const force = (body as any)?.force === true
+    console.error(`[fetch-research] processing: ${ticker} force=${force}`)
 
     // ── Cache check ─────────────────────────────────────────────────────────
     const { data: cached } = await supabase
@@ -86,7 +87,7 @@ Deno.serve(async (req) => {
       .eq('ticker', ticker)
       .maybeSingle()
 
-    if (cached) {
+    if (!force && cached) {
       const ageMs = Date.now() - new Date(cached.fetched_at).getTime()
       if (ageMs < CACHE_TTL_MS && cached.ai_summary != null) {
         console.error(`[fetch-research] cache hit for ${ticker} (${Math.round(ageMs / 60000)} min old)`)
