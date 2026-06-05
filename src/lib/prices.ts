@@ -1,6 +1,13 @@
 import { supabase } from './supabase'
 
-export type PriceEntry = { price: number; daily_change_pct: number; currency?: string }
+export type PriceEntry = {
+  price:                 number
+  daily_change_pct:      number
+  currency?:             string
+  pre_market_price?:     number | null
+  pre_market_change_pct?: number | null
+  market_state?:         string | null
+}
 export type ErrorEntry = { error: string }
 export type PriceMap   = Record<string, PriceEntry | ErrorEntry>
 export type MarketData = Record<string, { price: number; daily_change_pct: number }>

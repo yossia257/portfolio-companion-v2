@@ -264,6 +264,13 @@ export default function MainPage({
   const worst = performers[0] ?? null
   const best = performers[performers.length - 1] ?? null
 
+  // Show pre-market columns only when at least one holding has a non-null
+  // pre_market_price — which only happens during the 4:00–9:30 AM ET window.
+  const showPreMarket = list.some(h => {
+    const e = prices[h.ticker]
+    return e != null && !('error' in e) && (e as PriceEntry).pre_market_price != null
+  })
+
   // ── Helpers ──────────────────────────────────────────────────────────────
 
   async function signOut() {
@@ -434,6 +441,8 @@ export default function MainPage({
                       <th className="px-4 py-3 text-right font-medium">Buy Price</th>
                       <th className="px-4 py-3 text-right font-medium">Current Price</th>
                       <th className="px-4 py-3 text-right font-medium">Daily %</th>
+                      {showPreMarket && <th className="px-4 py-3 text-right font-medium">Pre-Market</th>}
+                      {showPreMarket && <th className="px-4 py-3 text-right font-medium">Pre-Mkt %</th>}
                       <th className="px-4 py-3 text-right font-medium">Total ({profile?.display_currency ?? 'NIS'})</th>
                       <th className="px-4 py-3 text-right font-medium">P&amp;L %</th>
                     </tr>
@@ -446,8 +455,10 @@ export default function MainPage({
                       const entry    = prices[h.ticker]           // PriceEntry | ErrorEntry | undefined
                       const hasLive  = entry != null && !('error' in entry)
                       const isNoData = entry != null && 'error' in entry
-                      const cur      = hasLive ? (entry as PriceEntry).price : null
-                      const daily    = hasLive ? (entry as PriceEntry).daily_change_pct : null
+                      const cur           = hasLive ? (entry as PriceEntry).price : null
+                      const daily         = hasLive ? (entry as PriceEntry).daily_change_pct : null
+                      const prePrice      = hasLive ? ((entry as PriceEntry).pre_market_price      ?? null) : null
+                      const preChangePct  = hasLive ? ((entry as PriceEntry).pre_market_change_pct ?? null) : null
                       const total    = nisValue(h, prices, usdNis)
                       const pnl      = pnlPct(h, prices)
                       // Show spinner only while fetching and no answer yet for this ticker
@@ -508,6 +519,28 @@ export default function MainPage({
                               <span className="text-gray-600">—</span>
                             )}
                           </td>
+
+                          {/* Pre-Market Price — only rendered when showPreMarket */}
+                          {showPreMarket && (
+                            <td className="px-4 py-3 text-right tabular-nums">
+                              {prePrice != null ? (
+                                <span className="text-amber-300">{ccySym}{fmtPrice(prePrice)}</span>
+                              ) : (
+                                <span className="text-gray-700">—</span>
+                              )}
+                            </td>
+                          )}
+
+                          {/* Pre-Market % — only rendered when showPreMarket */}
+                          {showPreMarket && (
+                            <td className="px-4 py-3 text-right tabular-nums">
+                              {preChangePct != null ? (
+                                <span className={pnlColor(preChangePct)}>{fmtPct(preChangePct)}</span>
+                              ) : (
+                                <span className="text-gray-700">—</span>
+                              )}
+                            </td>
+                          )}
 
                           {/* Total NIS */}
                           <td className="px-4 py-3 text-right tabular-nums">
