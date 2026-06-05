@@ -447,14 +447,18 @@ export default function MainPage({
                       return (
                         <tr
                           key={h.id}
-                          onClick={() => setSelectedHolding(h)}
-                          className={`border-t border-gray-800 hover:bg-gray-900/50 transition-colors cursor-pointer ${
+                          className={`border-t border-gray-800 hover:bg-gray-900/50 transition-colors ${
                             i % 2 === 0 ? '' : 'bg-gray-900/20'
                           }`}
                         >
-                          {/* Ticker */}
-                          <td className="px-4 py-3 font-mono font-semibold text-white whitespace-nowrap">
-                            {h.ticker}
+                          {/* Ticker — click to open drill-down */}
+                          <td className="px-4 py-3 whitespace-nowrap">
+                            <button
+                              onClick={() => setSelectedHolding(h)}
+                              className="font-mono font-semibold text-white cursor-pointer hover:underline underline-offset-2 decoration-gray-500"
+                            >
+                              {h.ticker}
+                            </button>
                           </td>
 
                           {/* Name */}
