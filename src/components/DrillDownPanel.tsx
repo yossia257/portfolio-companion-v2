@@ -24,6 +24,9 @@ interface NewsItem {
 
 interface ResearchData {
   ticker: string
+  description: string | null
+  industry: string | null
+  sector: string | null
   news: NewsItem[]
   analyst_buy: number | null
   analyst_hold: number | null
@@ -217,7 +220,18 @@ export default function DrillDownPanel({ holding, priceEntry, onClose }: DrillDo
               )}
             </div>
             {holding.name && (
-              <p className="text-sm text-gray-400 mt-0.5">{holding.name}</p>
+              <p className="text-sm text-gray-300 mt-0.5">{holding.name}</p>
+            )}
+            {/* Industry / sector tags from profile — rendered once research loads */}
+            {research && (research.industry || research.sector) && (
+              <p className="text-xs text-gray-500 mt-1">
+                {[research.sector, research.industry].filter(Boolean).join(' · ')}
+              </p>
+            )}
+            {research?.description && (
+              <p className="text-xs text-gray-500 mt-1.5 leading-relaxed line-clamp-2 max-w-[340px]">
+                {research.description}
+              </p>
             )}
           </div>
           <button

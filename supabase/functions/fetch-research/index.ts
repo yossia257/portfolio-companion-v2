@@ -102,7 +102,7 @@ Deno.serve(async (req) => {
     const today = yyyymmdd(new Date())
     const from  = yyyymmdd(new Date(Date.now() - 14 * 24 * 60 * 60 * 1000))
 
-    const [newsOut, analystOut, metricsOut, candleOut] = await Promise.allSettled([
+    const [newsOut, analystOut, metricsOut, candleOut, profileOut] = await Promise.allSettled([
       // 1. Finnhub: company news (last 14 days)
       fetch(
         `https://finnhub.io/api/v1/company-news?symbol=${encodeURIComponent(ticker)}&from=${from}&to=${today}&token=${FINNHUB_KEY}`
@@ -123,6 +123,11 @@ Deno.serve(async (req) => {
         `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(ticker)}?interval=1d&range=60d`,
         { headers: { 'User-Agent': YAHOO_UA } }
       ).then(r => { console.error(`[fetch-research] Yahoo candle ${r.status}`); return r.json() }),
+
+      // 5. Finnhub: company profile (description, industry, sector)
+      fetch(
+        `https://finnhub.io/api/v1/stock/profile2?symbol=${encodeURIComponent(ticker)}&token=${FINNHUB_KEY}`
+      ).then(r => { console.error(`[fetch-research] Finnhub profile ${r.status}`); return r.json() }),
     ])
 
     // ── Extract: news ───────────────────────────────────────────────────────
@@ -197,6 +202,27 @@ Deno.serve(async (req) => {
       }
     } else {
       console.error('[fetch-research] candle fetch failed:', candleOut.reason)
+    }
+
+    // ── Extract: company profile ────────────────────────────────────────────
+    let description: string | null = null
+    let industry:    string | null = null
+    let sector:      string | null = null
+    if (profileOut.status === 'fulfilled' && profileOut.value && typeof profileOut.value === 'object') {
+      const p = profileOut.value as any
+      // Trim description to ~200 chars (roughly 2 lines) to keep the cache lean
+      const rawDesc = p.description ?? p.longDescription ?? null
+      description = typeof rawDesc === 'string' && rawDesc.length > 0
+        ? rawDesc.slice(0, 200).trimEnd() + (rawDesc.length > 200 ? '…' : '')
+        : null
+      // Finnhub uses finnhubIndustry; gicsSector is an alternative grouping
+      industry = p.finnhubIndustry ?? p.gicsSector ?? null
+      sector   = p.gicsSector ?? p.finnhubIndustry ?? null
+      // Avoid storing identical values in both columns
+      if (sector === industry) sector = null
+      console.error(`[fetch-research] profile: industry=${industry} sector=${sector} desc=${description?.slice(0, 50)}`)
+    } else {
+      console.error('[fetch-research] profile failed:', profileOut.status === 'rejected' ? profileOut.reason : 'empty/null')
     }
 
     // Price targets: FMP deprecated this endpoint Aug 2025.
@@ -275,6 +301,9 @@ Deno.serve(async (req) => {
     // ── Build row and upsert ────────────────────────────────────────────────
     const row = {
       ticker,
+      description,
+      industry,
+      sector,
       news,
       analyst_buy,
       analyst_hold,
