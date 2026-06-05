@@ -105,9 +105,11 @@ function Pulse() {
 export default function MainPage({
   session,
   onNavigateUpload,
+  onNavigateSettings,
 }: {
   session: Session
   onNavigateUpload: () => void
+  onNavigateSettings: () => void
 }) {
   const [loading, setLoading] = useState(true)
   const [profile, setProfile] = useState<Profile | null>(null)
@@ -305,6 +307,13 @@ export default function MainPage({
               Re-upload
             </button>
           )}
+          <button
+            onClick={onNavigateSettings}
+            className="px-4 py-2 rounded-lg bg-gray-800 text-gray-200 text-sm hover:bg-gray-700 transition-colors"
+            aria-label="Settings"
+          >
+            ⚙
+          </button>
           <button
             onClick={signOut}
             className="px-4 py-2 rounded-lg bg-gray-800 text-gray-200 text-sm hover:bg-gray-700 transition-colors"

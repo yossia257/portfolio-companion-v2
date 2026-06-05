@@ -3,8 +3,9 @@ import type { Session } from '@supabase/supabase-js'
 import { supabase } from './lib/supabase'
 import MainPage from './pages/MainPage'
 import UploadPage from './pages/UploadPage'
+import SettingsPage from './pages/SettingsPage'
 
-type Page = 'main' | 'upload'
+type Page = 'main' | 'upload' | 'settings'
 
 export default function App() {
   const [session, setSession] = useState<Session | null>(null)
@@ -47,10 +48,13 @@ export default function App() {
 
   // Logged-in routing
   if (session) {
-    if (page === 'upload') {
-      return <UploadPage onBack={() => setPage('main')} />
-    }
-    return <MainPage session={session} onNavigateUpload={() => setPage('upload')} />
+    if (page === 'upload')   return <UploadPage   onBack={() => setPage('main')} />
+    if (page === 'settings') return <SettingsPage session={session} onBack={() => setPage('main')} />
+    return <MainPage
+      session={session}
+      onNavigateUpload={() => setPage('upload')}
+      onNavigateSettings={() => setPage('settings')}
+    />
   }
 
   // Logged-out: login form (unchanged)
