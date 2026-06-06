@@ -51,6 +51,10 @@ export interface DrillDownPanelProps {
   holding: Holding
   priceEntry: PriceEntry | ErrorEntry | undefined
   onClose: () => void
+  rsuContext?: {
+    quantity: number
+    vestDate: string
+  }
 }
 
 // ── Constants ─────────────────────────────────────────────────────────────
@@ -260,14 +264,28 @@ export default function DrillDownPanel({ holding, priceEntry, onClose }: DrillDo
 
           {/* ── My Position ── */}
           <section className="px-5 py-4 border-b border-gray-800">
-            <h3 className="text-xs uppercase tracking-wider text-gray-500 mb-3">My Position</h3>
-            <div className="grid grid-cols-3 gap-y-3 gap-x-4">
-              <Stat label="Quantity"   value={holding.quantity != null ? Number(holding.quantity).toLocaleString(undefined, { maximumFractionDigits: 4 }) : '—'} />
-              <Stat label="Buy Price"  value={buyPrice != null ? `${ccySym}${fmtNum(buyPrice)}` : '—'} />
-              <Stat label="P&L"        value={fmtPct(pnl)} />
-              <Stat label="Currency"   value={holding.currency ?? '—'} />
-              <Stat label="Category"   value={holding.category ?? '—'} />
-            </div>
+            <h3 className="text-xs uppercase tracking-wider text-gray-500 mb-3">
+              {rsuContext ? 'RSU Grant' : 'My Position'}
+            </h3>
+            {rsuContext ? (
+              <div className="space-y-2 text-sm">
+                <p className="text-gray-300">
+                  Held via RSU grant — {rsuContext.quantity.toLocaleString()} shares vesting{' '}
+                  {new Date(rsuContext.vestDate).toLocaleDateString([], { year: 'numeric', month: 'short', day: 'numeric' })}
+                </p>
+                <p className="text-xs text-gray-500">
+                  View full grant details in the RSU tab
+                </p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-3 gap-y-3 gap-x-4">
+                <Stat label="Quantity"   value={holding.quantity != null ? Number(holding.quantity).toLocaleString(undefined, { maximumFractionDigits: 4 }) : '—'} />
+                <Stat label="Buy Price"  value={buyPrice != null ? `${ccySym}${fmtNum(buyPrice)}` : '—'} />
+                <Stat label="P&L"        value={fmtPct(pnl)} />
+                <Stat label="Currency"   value={holding.currency ?? '—'} />
+                <Stat label="Category"   value={holding.category ?? '—'} />
+              </div>
+            )}
           </section>
 
           {loading ? (
