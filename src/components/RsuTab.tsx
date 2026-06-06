@@ -4,7 +4,6 @@ import { estimateTaxIL } from '../lib/tax'
 import { useUserProfile } from '../lib/useUserProfile'
 import DrillDownPanel from './DrillDownPanel'
 import type { PriceMap, PriceEntry, ErrorEntry } from '../lib/prices'
-import type { Holding } from '../pages/MainPage'
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
