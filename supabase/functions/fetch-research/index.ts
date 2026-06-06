@@ -49,6 +49,28 @@ function computeRSI(closes: number[], period = 14): number | null {
 
 // ── Utilities ──────────────────────────────────────────────────────────────
 
+function trimToLastSentence(text: string): string {
+  // Check if text already ends with sentence-ending punctuation
+  const sentenceEnders = /[.!?。][\s"']*$/
+  if (sentenceEnders.test(text)) return text
+
+  // Find the last sentence-ending punctuation
+  const lastPeriod = Math.max(
+    text.lastIndexOf('. '),
+    text.lastIndexOf('! '),
+    text.lastIndexOf('? '),
+    text.lastIndexOf('.\n'),
+    text.lastIndexOf('!\n'),
+    text.lastIndexOf('?\n'),
+    text.lastIndexOf('。'), // Chinese/Japanese period
+    text.lastIndexOf('！'), // Chinese/Japanese exclamation
+    text.lastIndexOf('？')  // Chinese/Japanese question mark
+  )
+
+  if (lastPeriod === -1) return text + '…'
+  return text.substring(0, lastPeriod + 1)
+}
+
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
     status,
@@ -307,6 +329,8 @@ Deno.serve(async (req) => {
           `Write 4–6 sentences. No bullet points. No explicit buy/sell verdict. ` +
           `Synthesize: where the story stands now, what analysts and the chart agree or disagree on, ` +
           `and what is the single most important thing a current holder should watch.\n\n` +
+          `IMPORTANT: End your response at a complete sentence with proper punctuation. Do not leave any sentence unfinished. ` +
+          `If you're approaching the token limit, wrap up your current thought cleanly rather than starting a new one.\n\n` +
           `${langInstruction}\n\n` +
           `Current data:\n${context}`
 
@@ -320,7 +344,7 @@ Deno.serve(async (req) => {
           },
           body: JSON.stringify({
             model:      'claude-sonnet-4-6',
-            max_tokens: 400,
+            max_tokens: 700,
             messages:   [{ role: 'user', content: prompt }],
           }),
         })
@@ -328,8 +352,10 @@ Deno.serve(async (req) => {
         console.error(`[fetch-research] Anthropic HTTP ${anthropicRes.status}`)
         if (anthropicRes.ok) {
           const anthropicData = await anthropicRes.json()
-          const text = anthropicData.content?.[0]?.text ?? null
+          let text = anthropicData.content?.[0]?.text ?? null
           if (text) {
+            // Safety net: trim to last complete sentence if truncated mid-sentence
+            text = trimToLastSentence(text)
             ai_summary_text = text
             ai_summary_at   = new Date().toISOString()
             // Merge into the per-language map; other languages are untouched.
