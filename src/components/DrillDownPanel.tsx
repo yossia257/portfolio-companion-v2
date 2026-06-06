@@ -141,7 +141,7 @@ function Stat({ label, value }: { label: string; value: string }) {
 
 // ── Component ──────────────────────────────────────────────────────────────
 
-export default function DrillDownPanel({ holding, priceEntry, onClose }: DrillDownPanelProps) {
+export default function DrillDownPanel({ holding, priceEntry, onClose, rsuContext }: DrillDownPanelProps) {
   const [isVisible, setIsVisible] = useState(false)
   const [research, setResearch] = useState<ResearchData | null>(null)
   const [language, setLanguage] = useState<string>('en')
