@@ -577,6 +577,96 @@ export default function RsuTab({ prices = {}, onFetchPrices }: RsuTabProps) {
         </div>
       )}
 
+      {/* 12-Month Forecast Panel */}
+      {grants.length > 0 && (
+        <div className="mt-8 p-4 rounded-lg bg-blue-950/30 border border-blue-800/40">
+          <h3 className="text-sm font-semibold mb-2">12-Month Vest Forecast</h3>
+          <p className="text-xs text-gray-500 mb-4">
+            Forecast assumes current price holds at vest. Actual values will differ based on market movements.
+          </p>
+
+          {(() => {
+            const today = new Date()
+            const in12Months = new Date(today.getTime() + 365 * 24 * 60 * 60 * 1000)
+
+            const upcomingGrants = grants
+              .filter((g) => {
+                const vestDate = new Date(g.vest_date)
+                return vestDate > today && vestDate <= in12Months
+              })
+              .sort((a, b) => new Date(a.vest_date).getTime() - new Date(b.vest_date).getTime())
+
+            if (upcomingGrants.length === 0) {
+              return (
+                <p className="text-xs text-gray-500 italic">No vests scheduled in the next 12 months</p>
+              )
+            }
+
+            const forecastTotal = upcomingGrants.reduce((sum, g) => {
+              const currentPrice = (prices[g.ticker] as any)?.price ?? g.grant_price
+              const tax = estimateTaxIL(
+                { quantity: g.quantity, grant_price: g.grant_price, grant_currency: g.grant_currency },
+                currentPrice,
+                fxRates
+              )
+              const grossUSD = g.quantity * currentPrice
+              const netUSD = grossUSD - tax.estimatedTax
+              const netNIS = netUSD * (fxRates.USD_NIS || 3.75)
+              return sum + netNIS
+            }, 0)
+
+            return (
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="border-b border-blue-800/40 text-gray-400">
+                      <th className="px-3 py-2 text-left font-medium">Vest Date</th>
+                      <th className="px-3 py-2 text-left font-medium">Ticker</th>
+                      <th className="px-3 py-2 text-right font-medium">Qty</th>
+                      <th className="px-3 py-2 text-right font-medium">Est. Net Value</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {upcomingGrants.map((g) => {
+                      const currentPrice = (prices[g.ticker] as any)?.price ?? g.grant_price
+                      const tax = estimateTaxIL(
+                        { quantity: g.quantity, grant_price: g.grant_price, grant_currency: g.grant_currency },
+                        currentPrice,
+                        fxRates
+                      )
+                      const grossUSD = g.quantity * currentPrice
+                      const netUSD = grossUSD - tax.estimatedTax
+                      const netNIS = netUSD * (fxRates.USD_NIS || 3.75)
+
+                      return (
+                        <tr key={g.id} className="border-b border-blue-800/20 text-gray-300">
+                          <td className="px-3 py-2 whitespace-nowrap">{formatDate(g.vest_date)}</td>
+                          <td className="px-3 py-2 whitespace-nowrap font-mono font-semibold">{g.ticker}</td>
+                          <td className="px-3 py-2 text-right tabular-nums">{g.quantity.toLocaleString()}</td>
+                          <td className="px-3 py-2 text-right tabular-nums text-blue-300">
+                            {ccySymbol}
+                            {netNIS.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                  <tfoot>
+                    <tr className="border-t-2 border-blue-700/40 font-semibold text-gray-200">
+                      <td colSpan={3} className="px-3 py-3 text-right">12-Month Total:</td>
+                      <td className="px-3 py-3 text-right tabular-nums text-blue-300">
+                        {ccySymbol}
+                        {forecastTotal.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                      </td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+            )
+          })()}
+        </div>
+      )}
+
       {/* Add/Edit Modal */}
       {modalOpen && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
