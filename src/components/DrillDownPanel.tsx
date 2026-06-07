@@ -233,15 +233,29 @@ export default function DrillDownPanel({ holding, priceEntry, onClose, rsuContex
   }
 
   function handleToggleWatch() {
-    updateFlags({ ...flags, watch: !flags.watch })
+    const newFlags = {
+      watch: !(flags.watch ?? false),
+      thesis_broken: flags.thesis_broken ?? false,
+      note: flags.note ?? '',
+    }
+    updateFlags(newFlags)
   }
 
   function handleToggleThesisBroken() {
-    updateFlags({ ...flags, thesis_broken: !flags.thesis_broken })
+    const newFlags = {
+      watch: flags.watch ?? false,
+      thesis_broken: !(flags.thesis_broken ?? false),
+      note: flags.note ?? '',
+    }
+    updateFlags(newFlags)
   }
 
   function handleNoteChange(note: string) {
-    const newFlags = { ...flags, note }
+    const newFlags = {
+      watch: flags.watch ?? false,
+      thesis_broken: flags.thesis_broken ?? false,
+      note,
+    }
     setFlags(newFlags)
 
     // Debounce the DB update
@@ -263,6 +277,11 @@ export default function DrillDownPanel({ holding, priceEntry, onClose, rsuContex
   const pnl = curPrice && buyPrice && buyPrice !== 0
     ? ((curPrice - buyPrice) / buyPrice) * 100
     : null
+
+  // Defensive flags access with defaults
+  const flagsNote = flags.note ?? ''
+  const flagsWatch = flags.watch ?? false
+  const flagsThesisBroken = flags.thesis_broken ?? false
 
   return (
     <>
@@ -533,32 +552,32 @@ export default function DrillDownPanel({ holding, priceEntry, onClose, rsuContex
                 <button
                   onClick={handleToggleWatch}
                   className={`flex-1 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
-                    flags.watch
+                    flagsWatch
                       ? 'bg-blue-600 text-white'
                       : 'bg-gray-800 text-gray-400 hover:text-gray-300'
                   }`}
                 >
-                  🚩 Watch {flags.watch ? '✓' : ''}
+                  🚩 Watch {flagsWatch ? '✓' : ''}
                 </button>
                 <button
                   onClick={handleToggleThesisBroken}
                   className={`flex-1 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
-                    flags.thesis_broken
+                    flagsThesisBroken
                       ? 'bg-red-600 text-white'
                       : 'bg-gray-800 text-gray-400 hover:text-gray-300'
                   }`}
                 >
-                  ❌ Thesis Broken {flags.thesis_broken ? '✓' : ''}
+                  ❌ Thesis Broken {flagsThesisBroken ? '✓' : ''}
                 </button>
               </div>
 
               {/* Note input */}
               <div>
                 <label className="block text-xs text-gray-500 uppercase tracking-wider mb-2">
-                  Note ({flags.note.length}/280)
+                  Note ({flagsNote.length}/280)
                 </label>
                 <textarea
-                  value={flags.note}
+                  value={flagsNote}
                   onChange={(e) => handleNoteChange(e.target.value.slice(0, 280))}
                   placeholder="Why you're watching this (optional)"
                   maxLength={280}
