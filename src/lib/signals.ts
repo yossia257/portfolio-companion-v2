@@ -67,16 +67,16 @@ export type ResearchCacheRow = {
 }
 
 export type SignalThresholds = {
-  pnl_win_threshold: number // 100
-  pnl_win_action_threshold: number // 150
-  pnl_loss_threshold: number // -15
-  pnl_loss_action_threshold: number // -30
-  daily_gain_threshold: number // 5
-  daily_loss_threshold: number // -5
+  pnl_win_threshold: number // 100 (positive %)
+  pnl_win_action_threshold: number // 150 (positive %)
+  pnl_loss_threshold: number // -15 (negative %)
+  pnl_loss_action_threshold: number // -30 (negative %)
+  daily_gain_threshold: number // 5 (positive %, absolute value for comparison)
+  daily_loss_threshold: number // 5 (positive %, compared as -dailyChange <= -threshold i.e. dailyChange <= -5)
   rsi_overbought: number // 70
   rsi_oversold: number // 30
-  concentration_warn: number // 0.15
-  concentration_action: number // 0.25
+  concentration_warn: number // 0.15 (15%)
+  concentration_action: number // 0.25 (25%)
 }
 
 const DEFAULT_THRESHOLDS: SignalThresholds = {
@@ -85,7 +85,7 @@ const DEFAULT_THRESHOLDS: SignalThresholds = {
   pnl_loss_threshold: -15,
   pnl_loss_action_threshold: -30,
   daily_gain_threshold: 5,
-  daily_loss_threshold: -5,
+  daily_loss_threshold: 5,
   rsi_overbought: 70,
   rsi_oversold: 30,
   concentration_warn: 0.15,
