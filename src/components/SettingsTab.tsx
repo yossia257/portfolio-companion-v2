@@ -106,7 +106,7 @@ export default function SettingsTab() {
           <div>
             <label className="block text-xs text-gray-500 uppercase tracking-wider mb-2">Display Currency</label>
             <select
-              value={profile.display_currency}
+              value={profile?.display_currency || 'NIS'}
               onChange={(e) => handleCurrencyChange(e.target.value as any)}
               className="w-full px-3 py-2 rounded bg-gray-800 border border-gray-700 text-white text-sm focus:outline-none focus:border-blue-500"
             >
@@ -122,7 +122,7 @@ export default function SettingsTab() {
           <div>
             <label className="block text-xs text-gray-500 uppercase tracking-wider mb-2">AI Response Language</label>
             <select
-              value={profile.ai_response_language}
+              value={profile?.ai_response_language || 'en'}
               onChange={(e) => handleLanguageChange(e.target.value as any)}
               className="w-full px-3 py-2 rounded bg-gray-800 border border-gray-700 text-white text-sm focus:outline-none focus:border-blue-500"
             >
@@ -139,7 +139,7 @@ export default function SettingsTab() {
           <div>
             <label className="block text-xs text-gray-500 uppercase tracking-wider mb-2">Tax Jurisdiction</label>
             <select
-              value={(profile as any).tax_jurisdiction || 'IL'}
+              value={(profile as any)?.tax_jurisdiction || 'IL'}
               onChange={(e) => handleTaxJurisdictionChange(e.target.value as any)}
               className="w-full px-3 py-2 rounded bg-gray-800 border border-gray-700 text-white text-sm focus:outline-none focus:border-blue-500"
             >
@@ -171,7 +171,7 @@ export default function SettingsTab() {
             <label className="block text-xs text-gray-500 uppercase tracking-wider mb-2">Email (read-only)</label>
             <input
               type="email"
-              value={profile.email || ''}
+              value={profile?.email || ''}
               disabled
               className="w-full px-3 py-2 rounded bg-gray-800 border border-gray-700 text-gray-400 text-sm cursor-not-allowed"
             />
