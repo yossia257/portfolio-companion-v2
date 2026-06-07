@@ -24,6 +24,14 @@ export type Holding = {
   category: string | null
 }
 
+export type NewsItem = {
+  headline: string | null
+  summary: string | null
+  source: string | null
+  datetime: number | null
+  url: string | null
+}
+
 export type PriceEntry = {
   price: number
   daily_change_pct: number
@@ -38,7 +46,7 @@ export type ResearchCacheRow = {
   description: string | null
   industry: string | null
   sector: string | null
-  news: unknown[]
+  news: NewsItem[]
   analyst_buy: number | null
   analyst_hold: number | null
   analyst_sell: number | null

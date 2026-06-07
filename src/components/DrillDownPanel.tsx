@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { supabase } from '../lib/supabase'
+import { useResearchCache } from '../lib/useResearchCache'
 import type { PriceEntry, ErrorEntry } from '../lib/prices'
+import type { ResearchCacheRow } from '../lib/signals'
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -12,39 +14,6 @@ interface Holding {
   buy_price: number | string | null
   currency: string | null
   category: string | null
-}
-
-interface NewsItem {
-  headline: string | null
-  summary: string | null
-  source: string | null
-  datetime: number | null
-  url: string | null
-}
-
-interface ResearchData {
-  ticker: string
-  description: string | null
-  industry: string | null
-  sector: string | null
-  news: NewsItem[]
-  analyst_buy: number | null
-  analyst_hold: number | null
-  analyst_sell: number | null
-  pe_ratio: number | null
-  beta: number | null
-  eps: number | null
-  week52_high: number | null
-  week52_low: number | null
-  target_price_mean: number | null
-  target_price_high: number | null
-  target_price_low: number | null
-  ma_20: number | null
-  ma_50: number | null
-  rsi_14: number | null
-  ai_summary: string | null
-  ai_summary_at: string | null
-  fetched_at: string
 }
 
 export interface DrillDownPanelProps {
@@ -143,11 +112,11 @@ function Stat({ label, value }: { label: string; value: string }) {
 
 export default function DrillDownPanel({ holding, priceEntry, onClose, rsuContext }: DrillDownPanelProps) {
   const [isVisible, setIsVisible] = useState(false)
-  const [research, setResearch] = useState<ResearchData | null>(null)
+  const [research, setResearch] = useState<ResearchCacheRow | null>(null)
   const [language, setLanguage] = useState<string>('en')
-  const [loading, setLoading] = useState(true)
-  const [fetchError, setFetchError] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
   const panelRef = useRef<HTMLDivElement>(null)
+  const { get: getCached, set: setCached } = useResearchCache()
 
   // Slide-in: set visible on next tick so CSS transition fires from translate-x-full → 0
   useEffect(() => {
@@ -162,25 +131,36 @@ export default function DrillDownPanel({ holding, priceEntry, onClose, rsuContex
     return () => window.removeEventListener('keydown', onKey)
   }, [])
 
-  // Fetch research on open
+  // Fetch research on open — check frontend cache first
   useEffect(() => {
+    const cached = getCached(holding.ticker)
+    if (cached) {
+      console.log(`[DrillDownPanel] Frontend cache hit for ${holding.ticker}`)
+      setResearch(cached)
+      setError(null)
+      return
+    }
+
+    console.log(`[DrillDownPanel] Frontend cache miss for ${holding.ticker}; fetching...`)
     loadResearch(false)
   }, [holding.ticker])
 
   async function loadResearch(force: boolean) {
-    setLoading(true)
-    setFetchError(null)
+    setError(null)
     try {
       const { data, error } = await supabase.functions.invoke('fetch-research', {
         body: { ticker: holding.ticker, ...(force ? { force: true } : {}) },
       })
       if (error) throw new Error(error.message)
-      setResearch(data?.research ?? null)
+      const researchData = data?.research ?? null
+      setResearch(researchData)
       setLanguage(data?.language ?? 'en')
+      // Store in frontend cache for next time
+      if (researchData) {
+        setCached(holding.ticker, researchData)
+      }
     } catch (e) {
-      setFetchError(e instanceof Error ? e.message : 'Failed to load research data.')
-    } finally {
-      setLoading(false)
+      setError(e instanceof Error ? e.message : 'Failed to load research data.')
     }
   }
 
@@ -288,16 +268,10 @@ export default function DrillDownPanel({ holding, priceEntry, onClose, rsuContex
             )}
           </section>
 
-          {loading ? (
-            <>
-              <SectionSkeleton />
-              <SectionSkeleton />
-              <SectionSkeleton />
-              <SectionSkeleton />
-            </>
-          ) : fetchError ? (
+          {/* Error state */}
+          {error && (
             <div className="px-5 py-6 text-center">
-              <p className="text-red-400 text-sm mb-3">{fetchError}</p>
+              <p className="text-red-400 text-sm mb-3">{error}</p>
               <button
                 onClick={() => loadResearch(false)}
                 className="px-4 py-2 rounded-lg bg-gray-800 text-gray-200 text-sm hover:bg-gray-700 transition-colors"
@@ -305,180 +279,201 @@ export default function DrillDownPanel({ holding, priceEntry, onClose, rsuContex
                 Retry
               </button>
             </div>
-          ) : research ? (
-            <>
-              {/* ── Recent News ── */}
-              <section className="px-5 py-4 border-b border-gray-800">
-                <h3 className="text-xs uppercase tracking-wider text-gray-500 mb-3">Recent News</h3>
-                {research.news.length === 0 ? (
-                  <p className="text-sm text-gray-600">No recent news available.</p>
-                ) : (
-                  <div className="space-y-3">
-                    {research.news.map((item, i) => (
-                      <div key={i} className="space-y-0.5">
-                        {item.url ? (
-                          <a
-                            href={item.url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-sm text-gray-200 hover:text-white leading-snug line-clamp-2 transition-colors"
-                          >
-                            {item.headline}
-                          </a>
-                        ) : (
-                          <p className="text-sm text-gray-200 leading-snug line-clamp-2">{item.headline}</p>
-                        )}
-                        <div className="flex items-center gap-2 text-[11px] text-gray-600">
-                          {item.source && <span>{item.source}</span>}
-                          {item.datetime && <span>{timeAgo(item.datetime)}</span>}
-                        </div>
-                        {item.summary && (
-                          <p className="text-xs text-gray-500 leading-relaxed">{item.summary}</p>
-                        )}
-                      </div>
-                    ))}
+          )}
+
+          {/* ── Analyst Sentiment ── (fast; show even if news/ai still loading) */}
+          <section className="px-5 py-4 border-b border-gray-800">
+            <h3 className="text-xs uppercase tracking-wider text-gray-500 mb-3">Analyst Sentiment</h3>
+            {!research ? (
+              <SectionSkeleton />
+            ) : research.analyst_buy == null && research.analyst_hold == null ? (
+              <p className="text-sm text-gray-600">Analyst data not available for local stocks.</p>
+            ) : (() => {
+              const total = (research.analyst_buy ?? 0) + (research.analyst_hold ?? 0) + (research.analyst_sell ?? 0)
+              const buyPct  = total > 0 ? ((research.analyst_buy  ?? 0) / total) * 100 : 0
+              const holdPct = total > 0 ? ((research.analyst_hold ?? 0) / total) * 100 : 0
+              const sellPct = total > 0 ? ((research.analyst_sell ?? 0) / total) * 100 : 0
+              return (
+                <div className="space-y-2">
+                  <div className="flex h-2.5 rounded-full overflow-hidden">
+                    <div className="bg-green-500 transition-all" style={{ width: `${buyPct}%` }} />
+                    <div className="bg-yellow-500 transition-all" style={{ width: `${holdPct}%` }} />
+                    <div className="bg-red-500 transition-all"   style={{ width: `${sellPct}%` }} />
                   </div>
-                )}
-              </section>
-
-              {/* ── Analyst Sentiment ── */}
-              <section className="px-5 py-4 border-b border-gray-800">
-                <h3 className="text-xs uppercase tracking-wider text-gray-500 mb-3">Analyst Sentiment</h3>
-                {research.analyst_buy == null && research.analyst_hold == null ? (
-                  <p className="text-sm text-gray-600">Analyst data not available for local stocks.</p>
-                ) : (() => {
-                  const total = (research.analyst_buy ?? 0) + (research.analyst_hold ?? 0) + (research.analyst_sell ?? 0)
-                  const buyPct  = total > 0 ? ((research.analyst_buy  ?? 0) / total) * 100 : 0
-                  const holdPct = total > 0 ? ((research.analyst_hold ?? 0) / total) * 100 : 0
-                  const sellPct = total > 0 ? ((research.analyst_sell ?? 0) / total) * 100 : 0
-                  return (
-                    <div className="space-y-2">
-                      <div className="flex h-2.5 rounded-full overflow-hidden">
-                        <div className="bg-green-500 transition-all" style={{ width: `${buyPct}%` }} />
-                        <div className="bg-yellow-500 transition-all" style={{ width: `${holdPct}%` }} />
-                        <div className="bg-red-500 transition-all"   style={{ width: `${sellPct}%` }} />
-                      </div>
-                      <div className="flex gap-4 text-xs text-gray-400">
-                        <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-green-500 inline-block" />{research.analyst_buy ?? 0} Buy</span>
-                        <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-yellow-500 inline-block" />{research.analyst_hold ?? 0} Hold</span>
-                        <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-red-500 inline-block" />{research.analyst_sell ?? 0} Sell</span>
-                      </div>
-                      {research.target_price_mean != null && (
-                        <p className="text-sm text-gray-300 mt-1">
-                          Target: {ccySym}{fmtNum(research.target_price_mean)}
-                          {research.target_price_low != null && research.target_price_high != null && (
-                            <span className="text-gray-500"> (range {ccySym}{fmtNum(research.target_price_low)}–{ccySym}{fmtNum(research.target_price_high)})</span>
-                          )}
-                        </p>
-                      )}
-                    </div>
-                  )
-                })()}
-              </section>
-
-              {/* ── Technical Indicators ── */}
-              <section className="px-5 py-4 border-b border-gray-800">
-                <h3 className="text-xs uppercase tracking-wider text-gray-500 mb-3">Technical Indicators</h3>
-                <div className="space-y-3">
-
-                  {/* MA comparison */}
-                  {(research.ma_20 != null || research.ma_50 != null) && curPrice != null && (
-                    <p className="text-sm text-gray-300">
-                      Price is{' '}
-                      {[
-                        research.ma_20 != null
-                          ? (curPrice > research.ma_20
-                              ? <span key="ma20" className="text-green-400">above 20d MA</span>
-                              : <span key="ma20" className="text-red-400">below 20d MA</span>)
-                          : null,
-                        research.ma_50 != null
-                          ? (curPrice > research.ma_50
-                              ? <span key="ma50" className="text-green-400">above 50d MA</span>
-                              : <span key="ma50" className="text-red-400">below 50d MA</span>)
-                          : null,
-                      ].filter(Boolean).reduce<React.ReactNode[]>((acc, el, i) =>
-                        i === 0 ? [el] : [...acc, <span key={`sep${i}`} className="text-gray-600"> and </span>, el], []
+                  <div className="flex gap-4 text-xs text-gray-400">
+                    <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-green-500 inline-block" />{research.analyst_buy ?? 0} Buy</span>
+                    <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-yellow-500 inline-block" />{research.analyst_hold ?? 0} Hold</span>
+                    <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-red-500 inline-block" />{research.analyst_sell ?? 0} Sell</span>
+                  </div>
+                  {research.target_price_mean != null && (
+                    <p className="text-sm text-gray-300 mt-1">
+                      Target: {ccySym}{fmtNum(research.target_price_mean)}
+                      {research.target_price_low != null && research.target_price_high != null && (
+                        <span className="text-gray-500"> (range {ccySym}{fmtNum(research.target_price_low)}–{ccySym}{fmtNum(research.target_price_high)})</span>
                       )}
                     </p>
                   )}
-
-                  {/* RSI */}
-                  {research.rsi_14 != null && (
-                    <div className="flex items-center gap-3">
-                      <span className="text-sm text-gray-400">RSI(14):</span>
-                      <span className="text-sm font-semibold text-white tabular-nums">{research.rsi_14.toFixed(1)}</span>
-                      <span className={`text-xs font-medium px-2 py-0.5 rounded-full bg-gray-800 ${rsiColor(research.rsi_14)}`}>
-                        {rsiLabel(research.rsi_14)}
-                      </span>
-                    </div>
-                  )}
-
-                  {/* 52-week range bar */}
-                  {research.week52_low != null && research.week52_high != null && (
-                    <div>
-                      <div className="flex justify-between text-xs text-gray-500 mb-1">
-                        <span>{ccySym}{fmtNum(research.week52_low)}</span>
-                        <span className="text-gray-600">52-week range</span>
-                        <span>{ccySym}{fmtNum(research.week52_high)}</span>
-                      </div>
-                      <div className="relative h-2 rounded-full bg-gray-700">
-                        {curPrice != null && research.week52_high > research.week52_low && (
-                          <div
-                            className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-3 h-3 rounded-full bg-white border-2 border-gray-950 shadow"
-                            style={{
-                              left: `${Math.max(2, Math.min(98, ((curPrice - research.week52_low) / (research.week52_high - research.week52_low)) * 100))}%`,
-                            }}
-                          />
-                        )}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Fundamentals */}
-                  <div className="grid grid-cols-3 gap-y-3 gap-x-4 pt-1">
-                    <Stat label="PE (TTM)" value={research.pe_ratio != null ? fmtNum(research.pe_ratio, 1) : '—'} />
-                    <Stat label="Beta"     value={research.beta     != null ? fmtNum(research.beta,     2) : '—'} />
-                    <Stat label="EPS (TTM)" value={research.eps     != null ? `${ccySym}${fmtNum(research.eps, 2)}` : '—'} />
-                  </div>
                 </div>
-              </section>
+              )
+            })()}
+          </section>
 
-              {/* ── AI Summary ── */}
-              <section className="px-5 py-4">
-                <div className="flex items-center justify-between mb-3">
-                  <h3 className="text-xs uppercase tracking-wider text-gray-500">AI Summary</h3>
-                  <button
-                    onClick={() => loadResearch(true)}
-                    className="text-xs text-gray-500 hover:text-gray-300 transition-colors"
-                  >
-                    Regenerate ↺
-                  </button>
-                </div>
-                {research.ai_summary ? (
-                  <>
-                    <p
-                      className="text-sm text-gray-300 leading-relaxed"
-                      dir={language === 'he' ? 'rtl' : 'ltr'}
-                    >
-                      {research.ai_summary}
-                    </p>
-                    {research.ai_summary_at && (
-                      <p className="text-xs text-gray-600 mt-3">
-                        Generated by Claude in {LANG_NAMES[language] ?? language} · {fmtDateTime(research.ai_summary_at)}
-                      </p>
+          {/* ── Technical Indicators ── (fast) */}
+          <section className="px-5 py-4 border-b border-gray-800">
+            <h3 className="text-xs uppercase tracking-wider text-gray-500 mb-3">Technical Indicators</h3>
+            {!research ? (
+              <SectionSkeleton />
+            ) : (
+              <div className="space-y-3">
+                {/* MA comparison */}
+                {(research.ma_20 != null || research.ma_50 != null) && curPrice != null && (
+                  <p className="text-sm text-gray-300">
+                    Price is{' '}
+                    {[
+                      research.ma_20 != null
+                        ? (curPrice > research.ma_20
+                            ? <span key="ma20" className="text-green-400">above 20d MA</span>
+                            : <span key="ma20" className="text-red-400">below 20d MA</span>)
+                        : null,
+                      research.ma_50 != null
+                        ? (curPrice > research.ma_50
+                            ? <span key="ma50" className="text-green-400">above 50d MA</span>
+                            : <span key="ma50" className="text-red-400">below 50d MA</span>)
+                        : null,
+                    ].filter(Boolean).reduce<React.ReactNode[]>((acc, el, i) =>
+                      i === 0 ? [el] : [...acc, <span key={`sep${i}`} className="text-gray-600"> and </span>, el], []
                     )}
-                  </>
-                ) : (
-                  <p className="text-sm text-gray-600">
-                    Summary not available.{' '}
-                    <button onClick={() => loadResearch(true)} className="underline hover:text-gray-400 transition-colors">
-                      Generate now
-                    </button>
                   </p>
                 )}
-              </section>
-            </>
-          ) : null}
+
+                {/* RSI */}
+                {research.rsi_14 != null && (
+                  <div className="flex items-center gap-3">
+                    <span className="text-sm text-gray-400">RSI(14):</span>
+                    <span className="text-sm font-semibold text-white tabular-nums">{research.rsi_14.toFixed(1)}</span>
+                    <span className={`text-xs font-medium px-2 py-0.5 rounded-full bg-gray-800 ${rsiColor(research.rsi_14)}`}>
+                      {rsiLabel(research.rsi_14)}
+                    </span>
+                  </div>
+                )}
+
+                {/* 52-week range bar */}
+                {research.week52_low != null && research.week52_high != null && (
+                  <div>
+                    <div className="flex justify-between text-xs text-gray-500 mb-1">
+                      <span>{ccySym}{fmtNum(research.week52_low)}</span>
+                      <span className="text-gray-600">52-week range</span>
+                      <span>{ccySym}{fmtNum(research.week52_high)}</span>
+                    </div>
+                    <div className="relative h-2 rounded-full bg-gray-700">
+                      {curPrice != null && research.week52_high > research.week52_low && (
+                        <div
+                          className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-3 h-3 rounded-full bg-white border-2 border-gray-950 shadow"
+                          style={{
+                            left: `${Math.max(2, Math.min(98, ((curPrice - research.week52_low) / (research.week52_high - research.week52_low)) * 100))}%`,
+                          }}
+                        />
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* Valuation: PE, Beta, EPS */}
+                <div className="grid grid-cols-3 gap-2 text-xs">
+                  {research.pe_ratio != null && (
+                    <div>
+                      <span className="text-gray-500">PE</span>
+                      <p className="font-medium text-gray-200">{research.pe_ratio.toFixed(1)}</p>
+                    </div>
+                  )}
+                  {research.beta != null && (
+                    <div>
+                      <span className="text-gray-500">Beta</span>
+                      <p className="font-medium text-gray-200">{research.beta.toFixed(2)}</p>
+                    </div>
+                  )}
+                  {research.eps != null && (
+                    <div>
+                      <span className="text-gray-500">EPS (TTM)</span>
+                      <p className="font-medium text-gray-200">{research.eps.toFixed(2)}</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+          </section>
+
+          {/* ── Recent News ── (slower; skeleton while loading) */}
+          <section className="px-5 py-4 border-b border-gray-800">
+            <h3 className="text-xs uppercase tracking-wider text-gray-500 mb-3">Recent News</h3>
+            {!research ? (
+              <SectionSkeleton />
+            ) : research.news.length === 0 ? (
+              <p className="text-sm text-gray-600">No recent news available.</p>
+            ) : (
+              <div className="space-y-3">
+                {research.news.map((item, i) => (
+                  <div key={i} className="space-y-0.5">
+                    {item.url ? (
+                      <a
+                        href={item.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-sm text-gray-200 hover:text-white leading-snug line-clamp-2 transition-colors"
+                      >
+                        {item.headline}
+                      </a>
+                    ) : (
+                      <p className="text-sm text-gray-200 leading-snug line-clamp-2">{item.headline}</p>
+                    )}
+                    <div className="flex items-center gap-2 text-[11px] text-gray-600">
+                      {item.source && <span>{item.source}</span>}
+                      {item.datetime && <span>{timeAgo(item.datetime)}</span>}
+                    </div>
+                    {item.summary && (
+                      <p className="text-xs text-gray-500 leading-relaxed">{item.summary}</p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </section>
+
+          {/* ── AI Summary ── (slowest; skeleton while loading) */}
+          <section className="px-5 py-4 border-b border-gray-800">
+            <h3 className="text-xs uppercase tracking-wider text-gray-500 mb-3">AI Summary</h3>
+            {!research || !research.ai_summary ? (
+              <SectionSkeleton />
+            ) : (
+              <div>
+                <p className="text-sm text-gray-300 leading-relaxed mb-3">{research.ai_summary}</p>
+                {research.ai_summary_at && (
+                  <p className="text-xs text-gray-600">Generated {fmtDateTime(research.ai_summary_at)}</p>
+                )}
+                <div className="mt-3 flex items-center gap-2 flex-wrap">
+                  <span className="text-xs text-gray-600">Language:</span>
+                  <select
+                    value={language}
+                    onChange={(e) => setLanguage(e.target.value)}
+                    className="text-xs bg-gray-800 border border-gray-700 rounded px-2 py-1 text-gray-300"
+                  >
+                    {Object.entries(LANG_NAMES).map(([code, name]) => (
+                      <option key={code} value={code}>
+                        {name}
+                      </option>
+                    ))}
+                  </select>
+                  <button
+                    onClick={() => loadResearch(true)}
+                    className="text-xs text-gray-500 hover:text-white transition-colors ml-auto"
+                  >
+                    Refresh summary ↻
+                  </button>
+                </div>
+              </div>
+            )}
+          </section>
+
         </div>
       </div>
     </>
