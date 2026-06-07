@@ -6,6 +6,7 @@ export interface UserProfile {
   display_name: string | null
   display_currency: 'USD' | 'NIS' | 'EUR' | 'GBP'
   ai_response_language: 'en' | 'he' | 'es' | 'de' | 'fr'
+  tax_jurisdiction?: 'IL' | 'US' | 'UK' | 'EU' | 'OTHER'
   email?: string
 }
 

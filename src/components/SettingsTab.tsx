@@ -36,6 +36,13 @@ export default function SettingsTab() {
     }
   }
 
+  async function handleTaxJurisdictionChange(jurisdiction: 'IL' | 'US' | 'UK' | 'EU' | 'OTHER') {
+    const success = await updateProfile({ tax_jurisdiction: jurisdiction as any })
+    if (success) {
+      showSaved()
+    }
+  }
+
   function showSaved() {
     setSaved(true)
     setTimeout(() => setSaved(false), 2000)
@@ -126,6 +133,23 @@ export default function SettingsTab() {
               <option value="fr">Français (French)</option>
             </select>
             <p className="text-xs text-gray-600 mt-2">Language for AI-generated summaries</p>
+          </div>
+
+          {/* Tax Jurisdiction */}
+          <div>
+            <label className="block text-xs text-gray-500 uppercase tracking-wider mb-2">Tax Jurisdiction</label>
+            <select
+              value={(profile as any).tax_jurisdiction || 'IL'}
+              onChange={(e) => handleTaxJurisdictionChange(e.target.value as any)}
+              className="w-full px-3 py-2 rounded bg-gray-800 border border-gray-700 text-white text-sm focus:outline-none focus:border-blue-500"
+            >
+              <option value="IL">Israel (IL)</option>
+              <option value="US">USA (US)</option>
+              <option value="UK">UK (UK)</option>
+              <option value="EU">EU (EU)</option>
+              <option value="OTHER">Other</option>
+            </select>
+            <p className="text-xs text-gray-600 mt-2">Used for tax calculation rules and RSU estimates</p>
           </div>
         </div>
       </div>

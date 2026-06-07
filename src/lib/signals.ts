@@ -212,6 +212,11 @@ function generateDailySignals(
 
     const dailyChange = priceEntry.daily_change_pct
 
+    // DEBUG: Log daily move for threshold verification
+    if (Math.abs(dailyChange) > 0.5) {
+      console.log('DAILY MOVE CHECK:', holding.ticker, 'daily_change_pct:', dailyChange, 'threshold:', thresholds.daily_gain_threshold)
+    }
+
     if (dailyChange >= thresholds.daily_gain_threshold) {
       signals.push({
         id: `${holding.ticker}-daily-gain`,

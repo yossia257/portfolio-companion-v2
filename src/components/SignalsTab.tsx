@@ -13,6 +13,14 @@ interface SignalsTabProps {
   usdNisRate: number
 }
 
+interface GroupedSignal {
+  ticker: string
+  signals: Signal[]
+  severity: 'action' | 'warn' | 'info'
+  pnl_pct?: number
+  value_nis?: number
+}
+
 export default function SignalsTab({
   holdings,
   prices,
@@ -27,18 +35,50 @@ export default function SignalsTab({
     [holdings, prices, research, usdNisRate]
   )
 
+  // Group signals by ticker
+  const groupedSignals = useMemo(() => {
+    const groupedMap: Record<string, GroupedSignal> = {}
+    const severityOrder = { action: 0, warn: 1, info: 2 }
+
+    signals.forEach((signal) => {
+      if (!groupedMap[signal.ticker]) {
+        groupedMap[signal.ticker] = {
+          ticker: signal.ticker,
+          signals: [],
+          severity: signal.severity,
+          pnl_pct: signal.pnl_pct,
+          value_nis: signal.value_nis,
+        }
+      }
+
+      groupedMap[signal.ticker].signals.push(signal)
+
+      // Update severity to highest (lowest order value = highest severity)
+      if (severityOrder[signal.severity] < severityOrder[groupedMap[signal.ticker].severity]) {
+        groupedMap[signal.ticker].severity = signal.severity
+      }
+
+      // Keep pnl_pct if signal has it
+      if (signal.pnl_pct != null && !groupedMap[signal.ticker].pnl_pct) {
+        groupedMap[signal.ticker].pnl_pct = signal.pnl_pct
+      }
+
+      // Keep value_nis if signal has it
+      if (signal.value_nis != null && !groupedMap[signal.ticker].value_nis) {
+        groupedMap[signal.ticker].value_nis = signal.value_nis
+      }
+    })
+
+    // Sort by severity (action > warn > info), then by absolute P&L
+    return Object.values(groupedMap).sort((a, b) => {
+      const severityDiff = severityOrder[a.severity] - severityOrder[b.severity]
+      if (severityDiff !== 0) return severityDiff
+      return Math.abs(b.pnl_pct ?? 0) - Math.abs(a.pnl_pct ?? 0)
+    })
+  }, [signals])
+
   const displayCcy = profile?.display_currency ?? 'NIS'
   const ccySymbol = displayCcy === 'NIS' ? '₪' : displayCcy === 'USD' ? '$' : displayCcy
-
-  // Group signals by severity for optional section headers
-  const grouped = signals.reduce(
-    (acc, signal) => {
-      if (!acc[signal.severity]) acc[signal.severity] = []
-      acc[signal.severity].push(signal)
-      return acc
-    },
-    { action: [] as Signal[], warn: [] as Signal[], info: [] as Signal[] }
-  )
 
   const severityConfig = {
     action: { label: '⚠️ Action Items', bgColor: 'bg-red-950/20', badgeBg: 'bg-red-600', badgeText: 'text-white' },
@@ -80,10 +120,10 @@ export default function SignalsTab({
         </div>
       ) : (
         <>
-          {/* Grouped sections */}
+          {/* Grouped by severity, one card per ticker */}
           {(['action', 'warn', 'info'] as const).map((severity) => {
-            const sectionSignals = grouped[severity]
-            if (sectionSignals.length === 0) return null
+            const tickerCards = groupedSignals.filter((g) => g.severity === severity)
+            if (tickerCards.length === 0) return null
 
             const config = severityConfig[severity]
 
@@ -92,46 +132,45 @@ export default function SignalsTab({
                 <h2 className="text-sm uppercase tracking-wider text-gray-400 mb-4">{config.label}</h2>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {sectionSignals.map((signal) => (
+                  {tickerCards.map((grouped) => (
                     <button
-                      key={signal.id}
-                      onClick={() => setSelectedTicker(signal.ticker)}
+                      key={grouped.ticker}
+                      onClick={() => setSelectedTicker(grouped.ticker)}
                       className="text-left"
                     >
                       <div className={`p-4 rounded-lg border border-gray-800 ${config.bgColor} hover:border-gray-700 transition-all hover:shadow-lg cursor-pointer`}>
                         {/* Top row: severity badge and ticker */}
                         <div className="flex items-start justify-between gap-4 mb-3">
                           <span className={`px-2 py-1 rounded text-xs font-bold ${config.badgeBg} ${config.badgeText} uppercase tracking-wider whitespace-nowrap`}>
-                            {severity}
+                            {grouped.severity}
                           </span>
-                          <span className="font-mono text-2xl font-bold text-white">{signal.ticker}</span>
+                          <span className="font-mono text-2xl font-bold text-white">{grouped.ticker}</span>
                         </div>
 
-                        {/* Title */}
-                        <h3 className="font-semibold text-gray-100 mb-2 leading-snug">{signal.title}</h3>
-
-                        {/* Reason */}
-                        <p className="text-sm text-gray-400 mb-4 leading-relaxed">{signal.reason}</p>
-
-                        {/* Context chips */}
-                        <div className="flex flex-wrap gap-2">
-                          {signal.pnl_pct != null && (
+                        {/* Context chips: P&L and value */}
+                        <div className="flex flex-wrap gap-2 mb-3">
+                          {grouped.pnl_pct != null && (
                             <div className="px-3 py-1 rounded-full bg-gray-800/50 text-xs text-gray-300 font-mono">
-                              {signal.pnl_pct >= 0 ? '+' : ''}
-                              {signal.pnl_pct.toFixed(1)}%
+                              {grouped.pnl_pct >= 0 ? '+' : ''}
+                              {grouped.pnl_pct.toFixed(1)}%
                             </div>
                           )}
-                          {signal.value_nis != null && (
+                          {grouped.value_nis != null && (
                             <div className="px-3 py-1 rounded-full bg-gray-800/50 text-xs text-gray-300 font-mono">
                               {ccySymbol}
-                              {(signal.value_nis / 1000).toFixed(0)}k
+                              {(grouped.value_nis / 1000).toFixed(0)}k
                             </div>
                           )}
-                          {signal.category && (
-                            <div className="px-3 py-1 rounded-full bg-gray-800/50 text-xs text-gray-500">
-                              {signal.category}
+                        </div>
+
+                        {/* Signal list */}
+                        <div className="space-y-2 text-xs">
+                          {grouped.signals.map((signal) => (
+                            <div key={signal.id} className="pl-3 border-l border-gray-700 text-gray-300">
+                              <p className="font-medium text-gray-200 mb-0.5">{signal.title}</p>
+                              <p className="text-gray-500 leading-snug">{signal.reason}</p>
                             </div>
-                          )}
+                          ))}
                         </div>
                       </div>
                     </button>
