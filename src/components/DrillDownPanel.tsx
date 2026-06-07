@@ -118,12 +118,12 @@ export default function DrillDownPanel({ holding, priceEntry, onClose, rsuContex
   const panelRef = useRef<HTMLDivElement>(null)
   const { get: getCached, set: setCached } = useResearchCache()
 
-  // Flags state
-  const [flags, setFlags] = useState<{ watch: boolean; thesis_broken: boolean; note: string }>({
+  // Flags state with safe defaults
+  const [flags, setFlags] = useState(() => ({
     watch: false,
     thesis_broken: false,
     note: '',
-  })
+  }))
   const noteDebounceRef = useRef<NodeJS.Timeout | null>(null)
 
   // Slide-in: set visible on next tick so CSS transition fires from translate-x-full → 0
@@ -166,21 +166,28 @@ export default function DrillDownPanel({ holding, priceEntry, onClose, rsuContex
   useEffect(() => {
     async function fetchFlags() {
       try {
-        const { data } = await supabase
+        const { data, error } = await supabase
           .from('holdings')
           .select('flags')
           .eq('id', holding.id)
           .single()
 
-        if (data?.flags) {
+        if (error) {
+          console.error('[DrillDownPanel] Error fetching flags:', error)
+          return
+        }
+
+        if (data && typeof data.flags === 'object' && data.flags !== null) {
           setFlags(data.flags)
         }
       } catch (e) {
-        console.error('[DrillDownPanel] Failed to fetch flags:', e)
+        console.error('[DrillDownPanel] Exception fetching flags:', e)
       }
     }
 
-    fetchFlags()
+    if (holding.id) {
+      fetchFlags()
+    }
   }, [holding.id])
 
   async function loadResearch(force: boolean) {
@@ -210,12 +217,18 @@ export default function DrillDownPanel({ holding, priceEntry, onClose, rsuContex
   async function updateFlags(newFlags: typeof flags) {
     setFlags(newFlags)
     try {
-      await supabase
+      const { error } = await supabase
         .from('holdings')
         .update({ flags: newFlags })
         .eq('id', holding.id)
+
+      if (error) {
+        console.error('[DrillDownPanel] Error updating flags:', error)
+      } else {
+        console.log('[DrillDownPanel] Flags updated:', newFlags)
+      }
     } catch (e) {
-      console.error('[DrillDownPanel] Failed to update flags:', e)
+      console.error('[DrillDownPanel] Exception updating flags:', e)
     }
   }
 
@@ -228,7 +241,8 @@ export default function DrillDownPanel({ holding, priceEntry, onClose, rsuContex
   }
 
   function handleNoteChange(note: string) {
-    setFlags({ ...flags, note })
+    const newFlags = { ...flags, note }
+    setFlags(newFlags)
 
     // Debounce the DB update
     if (noteDebounceRef.current) {
@@ -236,7 +250,7 @@ export default function DrillDownPanel({ holding, priceEntry, onClose, rsuContex
     }
 
     noteDebounceRef.current = setTimeout(() => {
-      updateFlags({ ...flags, note })
+      updateFlags(newFlags)
     }, 1000)
   }
 
