@@ -289,40 +289,58 @@ function generateConcentrationSignals(
   const totalValue = calculateTotalValue(holdings, prices, usdNisRate)
   if (totalValue === 0) return signals
 
+  // DEBUG: Log concentration math
+  const debugPcts: Record<string, string> = {}
+
   holdings.forEach((holding) => {
     const qty = typeof holding.quantity === 'string' ? parseFloat(holding.quantity) : holding.quantity ?? 0
     const priceEntry = getPrice(holding.ticker, prices)
     if (!priceEntry || qty === 0) return
 
     const currentPrice = priceEntry.price
+    // Convert holdings to USD value for consistent math
     let valueUSD = qty * currentPrice
+    // If holding is quoted in NIS, convert from NIS price to USD value
     if (holding.currency?.toUpperCase() === 'NIS') {
       valueUSD = valueUSD / usdNisRate
     }
+    // Now convert to display currency (NIS)
     const valueNIS = valueUSD * usdNisRate
-    const concentration = (valueUSD * usdNisRate) / totalValue
+    // Concentration as percentage of total portfolio value (both in NIS)
+    const concentration = valueNIS / totalValue
+    const concentrationPct = concentration * 100
 
-    if (concentration >= thresholds.concentration_action) {
+    // DEBUG
+    debugPcts[holding.ticker] = concentrationPct.toFixed(2)
+
+    if (concentrationPct >= thresholds.concentration_action * 100) {
       signals.push({
         id: `${holding.ticker}-concentration-action`,
         ticker: holding.ticker,
         severity: 'action',
         category: 'concentration',
-        title: `${holding.ticker}: ${(concentration * 100).toFixed(1)}% of portfolio`,
+        title: `${holding.ticker}: ${concentrationPct.toFixed(1)}% of portfolio`,
         reason: 'Very high concentration. Consider trimming for portfolio balance.',
         value_nis: valueNIS,
       })
-    } else if (concentration >= thresholds.concentration_warn) {
+    } else if (concentrationPct >= thresholds.concentration_warn * 100) {
       signals.push({
         id: `${holding.ticker}-concentration-warn`,
         ticker: holding.ticker,
         severity: 'warn',
         category: 'concentration',
-        title: `${holding.ticker}: ${(concentration * 100).toFixed(1)}% of portfolio`,
+        title: `${holding.ticker}: ${concentrationPct.toFixed(1)}% of portfolio`,
         reason: 'Significant concentration. Single-position risk is elevated.',
         value_nis: valueNIS,
       })
     }
+  })
+
+  // DEBUG: Log portfolio concentration math
+  console.log('CONCENTRATION DEBUG:', {
+    total_nis: totalValue.toFixed(2),
+    pct_by_ticker: debugPcts,
+    sum_pct: Object.values(debugPcts).reduce((sum, pct) => sum + parseFloat(pct), 0).toFixed(2) + '%',
   })
 
   return signals
