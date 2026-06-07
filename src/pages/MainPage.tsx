@@ -6,6 +6,7 @@ import TickerBar from '../components/TickerBar'
 import TabBar from '../components/TabBar'
 import PortfolioTab from '../components/PortfolioTab'
 import RsuTab from '../components/RsuTab'
+import SignalsTab from '../components/SignalsTab'
 import SettingsTab from '../components/SettingsTab'
 
 // ── Types ──────────────────────────────────────────────────────────────────
@@ -113,9 +114,10 @@ export default function MainPage({
   const [usdNis, setUsdNis] = useState<number | null>(null)
   const [pricesLoading, setPricesLoading] = useState(false)
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null)
+  const [research, setResearch] = useState<Record<string, any>>({})
 
   const [sortState, setSortState] = useState(() => readSortState())
-  const [activeTab, setActiveTab] = useState<'portfolio' | 'rsu' | 'settings'>('portfolio')
+  const [activeTab, setActiveTab] = useState<'portfolio' | 'rsu' | 'signals' | 'settings'>('portfolio')
 
   const REFRESH_MS = 60 * 60 * 1000 // 60 minutes
 
@@ -199,6 +201,27 @@ export default function MainPage({
 
       const list = holdingsData ?? []
       setHoldings(list)
+
+      // Fetch research cache for all tickers
+      if (list.length > 0) {
+        const tickers = [...new Set(list.map((h) => h.ticker))]
+        const { data: researchData } = await supabase
+          .from('ticker_research_cache')
+          .select('*')
+          .in('ticker', tickers)
+
+        if (researchData) {
+          const researchMap = researchData.reduce(
+            (acc, row) => {
+              acc[row.ticker] = row
+              return acc
+            },
+            {} as Record<string, any>
+          )
+          setResearch(researchMap)
+        }
+      }
+
       setLoading(false)
 
       if (!cancelled) doRefreshPrices(list)
@@ -367,6 +390,15 @@ export default function MainPage({
                 allTickers.map((ticker) => ({ ticker, quantity: 0, currency: 'USD', buy_price: 0 } as Holding))
               )
             }}
+          />
+        )}
+
+        {!loading && holdings !== null && activeTab === 'signals' && (
+          <SignalsTab
+            holdings={holdings}
+            prices={prices}
+            research={research}
+            usdNisRate={usdNis ?? 3.75}
           />
         )}
 

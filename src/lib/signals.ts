@@ -27,8 +27,8 @@ export type Holding = {
 export type PriceEntry = {
   price: number
   daily_change_pct: number
-  pre_market_price?: number
-  pre_market_change_pct?: number
+  pre_market_price?: number | null
+  pre_market_change_pct?: number | null
 }
 
 export type PriceCache = Record<string, PriceEntry | { error: string }>
