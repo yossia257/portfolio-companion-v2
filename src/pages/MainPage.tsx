@@ -282,9 +282,9 @@ export default function MainPage({
   return (
     <div className="min-h-screen bg-gray-950 text-white flex flex-col">
 
-      {/* ── Sticky chrome: header + ticker bar ── */}
-      <div className="sticky top-0 z-20">
-        <header className="bg-gray-950 border-b border-gray-800 px-6 py-4 flex items-center justify-between">
+      {/* ── Sticky navigation chrome: header + ticker + tabs ── */}
+      <div className="sticky top-0 z-30 bg-gray-950 border-b border-gray-800">
+        <header className="border-b border-gray-800 px-6 py-4 flex items-center justify-between">
           <h1 className="text-lg font-semibold tracking-tight">Portfolio Companion</h1>
           <div className="flex items-center gap-3">
             {(pricesLoading || lastUpdated) && (
@@ -330,10 +330,8 @@ export default function MainPage({
           </div>
         </header>
         <TickerBar usdNis={usdNis} market={market} lastUpdated={lastUpdated} />
-      </div>{/* end sticky wrapper */}
-
-      {/* ── Tab bar ── */}
-      {!loading && holdings !== null && <TabBar activeTab={activeTab} onTabChange={setActiveTab} />}
+        {!loading && holdings !== null && <TabBar activeTab={activeTab} onTabChange={setActiveTab} />}
+      </div>
 
       {/* ── Body ── */}
       <main className="flex-1 w-full">
