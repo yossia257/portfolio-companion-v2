@@ -118,6 +118,14 @@ export default function DrillDownPanel({ holding, priceEntry, onClose, rsuContex
   const panelRef = useRef<HTMLDivElement>(null)
   const { get: getCached, set: setCached } = useResearchCache()
 
+  // Flags state
+  const [flags, setFlags] = useState<{ watch: boolean; thesis_broken: boolean; note: string }>({
+    watch: false,
+    thesis_broken: false,
+    note: '',
+  })
+  const noteDebounceRef = useRef<NodeJS.Timeout | null>(null)
+
   // Slide-in: set visible on next tick so CSS transition fires from translate-x-full → 0
   useEffect(() => {
     const id = setTimeout(() => setIsVisible(true), 10)
@@ -129,6 +137,15 @@ export default function DrillDownPanel({ holding, priceEntry, onClose, rsuContex
     function onKey(e: KeyboardEvent) { if (e.key === 'Escape') handleClose() }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
+  }, [])
+
+  // Cleanup debounce on unmount
+  useEffect(() => {
+    return () => {
+      if (noteDebounceRef.current) {
+        clearTimeout(noteDebounceRef.current)
+      }
+    }
   }, [])
 
   // Fetch research on open — check frontend cache first
@@ -144,6 +161,27 @@ export default function DrillDownPanel({ holding, priceEntry, onClose, rsuContex
     console.log(`[DrillDownPanel] Frontend cache miss for ${holding.ticker}; fetching...`)
     loadResearch(false)
   }, [holding.ticker])
+
+  // Fetch flags on open
+  useEffect(() => {
+    async function fetchFlags() {
+      try {
+        const { data } = await supabase
+          .from('holdings')
+          .select('flags')
+          .eq('id', holding.id)
+          .single()
+
+        if (data?.flags) {
+          setFlags(data.flags)
+        }
+      } catch (e) {
+        console.error('[DrillDownPanel] Failed to fetch flags:', e)
+      }
+    }
+
+    fetchFlags()
+  }, [holding.id])
 
   async function loadResearch(force: boolean) {
     setError(null)
@@ -167,6 +205,39 @@ export default function DrillDownPanel({ holding, priceEntry, onClose, rsuContex
   function handleClose() {
     setIsVisible(false)
     setTimeout(onClose, 280)
+  }
+
+  async function updateFlags(newFlags: typeof flags) {
+    setFlags(newFlags)
+    try {
+      await supabase
+        .from('holdings')
+        .update({ flags: newFlags })
+        .eq('id', holding.id)
+    } catch (e) {
+      console.error('[DrillDownPanel] Failed to update flags:', e)
+    }
+  }
+
+  function handleToggleWatch() {
+    updateFlags({ ...flags, watch: !flags.watch })
+  }
+
+  function handleToggleThesisBroken() {
+    updateFlags({ ...flags, thesis_broken: !flags.thesis_broken })
+  }
+
+  function handleNoteChange(note: string) {
+    setFlags({ ...flags, note })
+
+    // Debounce the DB update
+    if (noteDebounceRef.current) {
+      clearTimeout(noteDebounceRef.current)
+    }
+
+    noteDebounceRef.current = setTimeout(() => {
+      updateFlags({ ...flags, note })
+    }, 1000)
   }
 
   // Derived price data from parent's price_cache state — no re-fetch
@@ -437,6 +508,51 @@ export default function DrillDownPanel({ holding, priceEntry, onClose, rsuContex
                 ))}
               </div>
             )}
+          </section>
+
+          {/* ── Flags ── */}
+          <section className="px-5 py-4 border-b border-gray-800">
+            <h3 className="text-xs uppercase tracking-wider text-gray-500 mb-3">Flags</h3>
+            <div className="space-y-3">
+              {/* Toggle buttons */}
+              <div className="flex gap-2">
+                <button
+                  onClick={handleToggleWatch}
+                  className={`flex-1 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                    flags.watch
+                      ? 'bg-blue-600 text-white'
+                      : 'bg-gray-800 text-gray-400 hover:text-gray-300'
+                  }`}
+                >
+                  🚩 Watch {flags.watch ? '✓' : ''}
+                </button>
+                <button
+                  onClick={handleToggleThesisBroken}
+                  className={`flex-1 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                    flags.thesis_broken
+                      ? 'bg-red-600 text-white'
+                      : 'bg-gray-800 text-gray-400 hover:text-gray-300'
+                  }`}
+                >
+                  ❌ Thesis Broken {flags.thesis_broken ? '✓' : ''}
+                </button>
+              </div>
+
+              {/* Note input */}
+              <div>
+                <label className="block text-xs text-gray-500 uppercase tracking-wider mb-2">
+                  Note ({flags.note.length}/280)
+                </label>
+                <textarea
+                  value={flags.note}
+                  onChange={(e) => handleNoteChange(e.target.value.slice(0, 280))}
+                  placeholder="Why you're watching this (optional)"
+                  maxLength={280}
+                  rows={3}
+                  className="w-full px-3 py-2 rounded bg-gray-800 border border-gray-700 text-white text-sm focus:outline-none focus:border-blue-500 resize-none"
+                />
+              </div>
+            </div>
           </section>
 
           {/* ── AI Summary ── (slowest; skeleton while loading) */}
