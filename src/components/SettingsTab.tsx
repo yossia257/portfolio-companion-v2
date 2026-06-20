@@ -162,12 +162,9 @@ export default function SettingsTab({ onHoldingUpdated }: SettingsTabProps) {
   }
 
   async function handleInvestmentProfileChange(field: string, value: string) {
+    // For now, just update local state (DB columns don't exist yet)
     setInvestmentProfile((prev) => ({ ...prev, [field]: value }))
-    const success = await updateProfile({ [field]: value || null })
-    if (success) {
-      setSaved(true)
-      setTimeout(() => setSaved(false), 2000)
-    }
+    // Note: Persistence to database will be added when schema is updated with these columns
   }
 
   if (loading) {
@@ -275,7 +272,7 @@ export default function SettingsTab({ onHoldingUpdated }: SettingsTabProps) {
       {/* Investment Profile Section */}
       <div className="mb-8">
         <h2 className="text-lg font-semibold mb-2">🎯 Investment Profile</h2>
-        <p className="text-sm text-gray-400 mb-6">Helps Claude generate suggestions tailored to your style. All fields optional.</p>
+        <p className="text-sm text-gray-400 mb-6">Helps Claude generate suggestions tailored to your style. All fields optional. (Session only — not persisted yet)</p>
 
         <div className="space-y-6">
           {/* Investment Horizon */}
