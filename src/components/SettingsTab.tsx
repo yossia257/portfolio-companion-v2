@@ -2,10 +2,20 @@ import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import { useUserProfile } from '../lib/useUserProfile'
 
+interface ArchivedHolding {
+  id: string
+  ticker: string
+  name: string | null
+  deleted_at: string
+}
+
 export default function SettingsTab() {
   const { profile, updateProfile, loading } = useUserProfile()
   const [saved, setSaved] = useState(false)
   const [displayName, setDisplayName] = useState('')
+  const [archivedHoldings, setArchivedHoldings] = useState<ArchivedHolding[]>([])
+  const [archivedLoading, setArchivedLoading] = useState(false)
+  const [restoringId, setRestoringId] = useState<string | null>(null)
 
   // Sync display name when profile loads
   useEffect(() => {
@@ -13,6 +23,88 @@ export default function SettingsTab() {
       setDisplayName(profile.display_name || '')
     }
   }, [profile])
+
+  // Fetch archived holdings
+  useEffect(() => {
+    fetchArchivedHoldings()
+  }, [])
+
+  async function fetchArchivedHoldings() {
+    setArchivedLoading(true)
+    try {
+      // Get user's active portfolio
+      const { data: portfolio } = await supabase
+        .from('portfolios')
+        .select('id')
+        .eq('user_id', (await supabase.auth.getUser()).data.user?.id || '')
+        .eq('is_active', true)
+        .maybeSingle()
+
+      if (!portfolio) {
+        setArchivedHoldings([])
+        return
+      }
+
+      // Get deleted holdings from last 30 days
+      const thirtyDaysAgo = new Date()
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
+
+      const { data } = await supabase
+        .from('holdings')
+        .select('id, ticker, name, deleted_at')
+        .eq('portfolio_id', portfolio.id)
+        .not('deleted_at', 'is', null)
+        .gte('deleted_at', thirtyDaysAgo.toISOString())
+        .order('deleted_at', { ascending: false })
+
+      setArchivedHoldings(data ?? [])
+    } catch (e) {
+      console.error('Error fetching archived holdings:', e)
+    } finally {
+      setArchivedLoading(false)
+    }
+  }
+
+  function formatRelativeTime(dateString: string): string {
+    const deleted = new Date(dateString)
+    const now = new Date()
+    const diffMs = now.getTime() - deleted.getTime()
+    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24))
+
+    if (diffDays === 0) {
+      const diffHours = Math.floor(diffMs / (1000 * 60 * 60))
+      if (diffHours === 0) {
+        const diffMins = Math.floor(diffMs / (1000 * 60))
+        return diffMins <= 1 ? 'just now' : `${diffMins}m ago`
+      }
+      return diffHours === 1 ? '1 hour ago' : `${diffHours}h ago`
+    }
+    return diffDays === 1 ? '1 day ago' : `${diffDays} days ago`
+  }
+
+  async function handleRestore(holding: ArchivedHolding) {
+    setRestoringId(holding.id)
+    try {
+      await supabase
+        .from('holdings')
+        .update({ deleted_at: null })
+        .eq('id', holding.id)
+
+      // Show toast
+      const toastDiv = document.createElement('div')
+      toastDiv.className = 'fixed bottom-4 right-4 px-4 py-2 rounded-lg bg-green-600/20 border border-green-600/50 text-sm text-green-300 animate-fade-out'
+      toastDiv.textContent = `Restored ${holding.ticker}`
+      document.body.appendChild(toastDiv)
+      setTimeout(() => toastDiv.remove(), 2000)
+
+      // Refetch archived holdings
+      await fetchArchivedHoldings()
+    } catch (e) {
+      console.error('Error restoring holding:', e)
+    } finally {
+      setRestoringId(null)
+    }
+  }
 
   async function handleSaveDisplayName() {
     if (!displayName.trim()) return
@@ -185,6 +277,52 @@ export default function SettingsTab() {
             Sign out
           </button>
         </div>
+      </div>
+
+      {/* Archived Holdings Section */}
+      <div className="mb-8">
+        <h2 className="text-lg font-semibold mb-2">📦 Archived Holdings</h2>
+        <p className="text-sm text-gray-400 mb-6">Holdings you deleted in the last 30 days. Restore to your portfolio at any time.</p>
+
+        {archivedLoading ? (
+          <div className="text-sm text-gray-500">Loading archived holdings…</div>
+        ) : archivedHoldings.length === 0 ? (
+          <div className="text-sm text-gray-500">No deleted holdings.</div>
+        ) : (
+          <div className="overflow-x-auto border border-gray-800 rounded-lg">
+            <table className="w-full text-sm">
+              <thead className="bg-gray-900">
+                <tr>
+                  <th className="px-4 py-3 text-left font-medium text-gray-400">Ticker</th>
+                  <th className="px-4 py-3 text-left font-medium text-gray-400">Name</th>
+                  <th className="px-4 py-3 text-left font-medium text-gray-400">Deleted</th>
+                  <th className="px-4 py-3 text-right font-medium text-gray-400">Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {archivedHoldings.map((holding) => (
+                  <tr
+                    key={holding.id}
+                    className="border-t border-gray-800 hover:bg-gray-900/50 transition-colors"
+                  >
+                    <td className="px-4 py-3 font-mono font-semibold text-white">{holding.ticker}</td>
+                    <td className="px-4 py-3 text-gray-300">{holding.name ?? '—'}</td>
+                    <td className="px-4 py-3 text-gray-400">{formatRelativeTime(holding.deleted_at)}</td>
+                    <td className="px-4 py-3 text-right">
+                      <button
+                        onClick={() => handleRestore(holding)}
+                        disabled={restoringId === holding.id}
+                        className="px-3 py-1 rounded bg-blue-600/20 border border-blue-600/50 text-blue-400 text-xs hover:bg-blue-600/30 transition-colors disabled:opacity-50 font-semibold"
+                      >
+                        {restoringId === holding.id ? 'Restoring…' : 'Restore'}
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
 
       {/* Footer */}
