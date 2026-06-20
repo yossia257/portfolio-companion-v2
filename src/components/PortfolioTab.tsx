@@ -25,7 +25,7 @@ interface EditableCellProps {
   value: string | number | null
   type: 'quantity' | 'buyPrice' | 'category'
   holdingId: string
-  onSave: (value: any) => void
+  onSave?: () => Promise<void>
   format?: (v: any) => string
   prefix?: string
 }
@@ -77,7 +77,10 @@ function EditableCell({ value, type, holdingId, onSave, format, prefix }: Editab
       setSaved(true)
       setTimeout(() => setSaved(false), 1500)
       setIsEditing(false)
-      onSave(parsedValue)
+
+      if (onSave) {
+        await onSave()
+      }
     } catch (e) {
       setError('Failed to save')
       console.error(e)
@@ -196,6 +199,7 @@ interface PortfolioTabProps {
   sortState: { column: SortCol; direction: SortDir }
   onSortClick: (col: SortCol) => void
   onUpload: () => void
+  onHoldingUpdated?: () => Promise<void>
 }
 
 export default function PortfolioTab({
@@ -208,6 +212,7 @@ export default function PortfolioTab({
   sortState,
   onSortClick,
   onUpload,
+  onHoldingUpdated,
 }: PortfolioTabProps) {
   const [selectedHolding, setSelectedHolding] = useState<Holding | null>(null)
 
@@ -451,7 +456,7 @@ export default function PortfolioTab({
                           value={h.quantity}
                           type="quantity"
                           holdingId={h.id}
-                          onSave={() => {}}
+                          onSave={onHoldingUpdated}
                           format={fmtQty}
                         />
                       </td>
@@ -462,7 +467,7 @@ export default function PortfolioTab({
                           value={h.buy_price}
                           type="buyPrice"
                           holdingId={h.id}
-                          onSave={() => {}}
+                          onSave={onHoldingUpdated}
                           format={(v) => v != null ? fmtPrice(v) : ''}
                           prefix={h.buy_price != null ? ccySym : ''}
                         />
@@ -544,7 +549,7 @@ export default function PortfolioTab({
                           value={h.category}
                           type="category"
                           holdingId={h.id}
-                          onSave={() => {}}
+                          onSave={onHoldingUpdated}
                         />
                       </td>
                     </tr>

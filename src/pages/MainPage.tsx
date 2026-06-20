@@ -159,6 +159,44 @@ export default function MainPage({
     setPricesLoading(false)
   }
 
+  const portfolioIdRef = useRef<string | null>(null)
+
+  async function refetchHoldings() {
+    if (!portfolioIdRef.current) return
+
+    const { data: holdingsData } = await supabase
+      .from('holdings')
+      .select('id, ticker, name, quantity, currency, buy_price, category')
+      .eq('portfolio_id', portfolioIdRef.current)
+      .is('deleted_at', null)
+      .order('ticker', { ascending: true })
+
+    const list = holdingsData ?? []
+    setHoldings(list)
+
+    // Fetch research cache for all tickers
+    if (list.length > 0) {
+      const tickers = [...new Set(list.map((h) => h.ticker))]
+      const { data: researchData } = await supabase
+        .from('ticker_research_cache')
+        .select('*')
+        .in('ticker', tickers)
+
+      if (researchData) {
+        const researchMap = researchData.reduce(
+          (acc, row) => {
+            acc[row.ticker] = row
+            return acc
+          },
+          {} as Record<string, any>
+        )
+        setResearch(researchMap)
+      }
+    }
+
+    await doRefreshPrices(list)
+  }
+
   useEffect(() => {
     let cancelled = false
 
@@ -189,6 +227,8 @@ export default function MainPage({
         if (!cancelled) doRefreshPrices([])
         return
       }
+
+      portfolioIdRef.current = portfolio.id
 
       const { data: holdingsData } = await supabase
         .from('holdings')
@@ -376,6 +416,7 @@ export default function MainPage({
             sortState={sortState}
             onSortClick={handleSortClick}
             onUpload={onNavigateUpload}
+            onHoldingUpdated={refetchHoldings}
           />
         )}
 
