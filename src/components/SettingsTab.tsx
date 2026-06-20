@@ -24,8 +24,8 @@ export default function SettingsTab({ onHoldingUpdated }: SettingsTabProps) {
     investment_horizon: '',
     risk_tolerance: '',
     portfolio_style: '',
-    themes_interest: '',
-    themes_avoid: '',
+    themes_of_interest: '',
+    themes_to_avoid: '',
     tax_sensitivity: '',
   })
 
@@ -37,8 +37,8 @@ export default function SettingsTab({ onHoldingUpdated }: SettingsTabProps) {
         investment_horizon: (profile as any)?.investment_horizon || '',
         risk_tolerance: (profile as any)?.risk_tolerance || '',
         portfolio_style: (profile as any)?.portfolio_style || '',
-        themes_interest: (profile as any)?.themes_interest || '',
-        themes_avoid: (profile as any)?.themes_avoid || '',
+        themes_of_interest: (profile as any)?.themes_of_interest || '',
+        themes_to_avoid: (profile as any)?.themes_to_avoid || '',
         tax_sensitivity: (profile as any)?.tax_sensitivity || '',
       })
     }
@@ -336,29 +336,29 @@ export default function SettingsTab({ onHoldingUpdated }: SettingsTabProps) {
           <div>
             <label className="block text-xs text-gray-500 uppercase tracking-wider mb-2">Themes of Interest (optional)</label>
             <textarea
-              value={investmentProfile.themes_interest}
-              onChange={(e) => handleInvestmentProfileChange('themes_interest', e.target.value.slice(0, 500))}
+              value={investmentProfile.themes_of_interest}
+              onChange={(e) => handleInvestmentProfileChange('themes_of_interest', e.target.value.slice(0, 500))}
               placeholder="e.g., cybersecurity, longevity, quantum computing, India growth, AI infrastructure"
               maxLength={500}
               className="w-full px-3 py-2 rounded bg-gray-800 border border-gray-700 text-white text-sm focus:outline-none focus:border-blue-500 resize-none"
               rows={3}
             />
-            <p className="text-xs text-gray-600 mt-1">{investmentProfile.themes_interest.length}/500 characters</p>
+            <p className="text-xs text-gray-600 mt-1">{investmentProfile.themes_of_interest.length}/500 characters</p>
           </div>
 
           {/* Themes to Avoid */}
           <div>
             <label className="block text-xs text-gray-500 uppercase tracking-wider mb-2">Themes to Avoid (optional)</label>
             <textarea
-              value={investmentProfile.themes_avoid}
-              onChange={(e) => handleInvestmentProfileChange('themes_avoid', e.target.value.slice(0, 500))}
+              value={investmentProfile.themes_to_avoid}
+              onChange={(e) => handleInvestmentProfileChange('themes_to_avoid', e.target.value.slice(0, 500))}
               placeholder="e.g., tobacco, defense, gambling, leveraged ETFs, single-name biotech"
               maxLength={500}
               className="w-full px-3 py-2 rounded bg-gray-800 border border-gray-700 text-white text-sm focus:outline-none focus:border-blue-500 resize-none"
               rows={3}
             />
             <p className="text-xs text-gray-600 mt-1">
-              {investmentProfile.themes_avoid.length}/500 characters
+              {investmentProfile.themes_to_avoid.length}/500 characters
             </p>
             <p className="text-xs text-gray-500 mt-2">💡 These will be excluded from AI suggestions strictly.</p>
           </div>
