@@ -228,7 +228,6 @@ export default function PortfolioTab({
   })
   const [addErrors, setAddErrors] = useState<Record<string, string>>({})
   const [addingHolding, setAddingHolding] = useState(false)
-  const [tickerError, setTickerError] = useState<string | null>(null)
 
   const list = holdings ?? []
 
@@ -304,14 +303,6 @@ export default function PortfolioTab({
     try {
       const upperTicker = addFormData.ticker.toUpperCase()
 
-      // Check if ticker already exists
-      const exists = await checkTickerExists(upperTicker)
-      if (exists) {
-        setTickerError(`${upperTicker} already in your portfolio`)
-        setAddingHolding(false)
-        return
-      }
-
       // Get active portfolio
       const { data: portfolio } = await supabase
         .from('portfolios')
@@ -321,6 +312,9 @@ export default function PortfolioTab({
         .maybeSingle()
 
       if (!portfolio) throw new Error('No active portfolio')
+
+      // Check if ticker already exists (for warning only)
+      const exists = await checkTickerExists(upperTicker)
 
       // Insert holding
       await supabase.from('holdings').insert({
@@ -336,8 +330,11 @@ export default function PortfolioTab({
 
       // Show toast
       const toastDiv = document.createElement('div')
-      toastDiv.className = 'fixed bottom-4 right-4 px-4 py-2 rounded-lg bg-green-600/20 border border-green-600/50 text-sm text-green-300 animate-fade-out'
-      toastDiv.textContent = `Added ${upperTicker} to portfolio`
+      const toastClass = exists
+        ? 'fixed bottom-4 right-4 px-4 py-2 rounded-lg bg-amber-600/20 border border-amber-600/50 text-sm text-amber-300 animate-fade-out'
+        : 'fixed bottom-4 right-4 px-4 py-2 rounded-lg bg-green-600/20 border border-green-600/50 text-sm text-green-300 animate-fade-out'
+      toastDiv.className = toastClass
+      toastDiv.textContent = exists ? `Added duplicate ${upperTicker}` : `Added ${upperTicker} to portfolio`
       document.body.appendChild(toastDiv)
       setTimeout(() => toastDiv.remove(), 2000)
 
@@ -345,7 +342,6 @@ export default function PortfolioTab({
       setShowAddModal(false)
       setAddFormData({ ticker: '', quantity: '', currency: 'USD', buy_price: '', name: '', category: '' })
       setAddErrors({})
-      setTickerError(null)
 
       // Refetch holdings and prices
       if (onHoldingUpdated) {
@@ -762,17 +758,15 @@ export default function PortfolioTab({
                   value={addFormData.ticker}
                   onChange={(e) => {
                     setAddFormData({ ...addFormData, ticker: e.target.value.toUpperCase() })
-                    setTickerError(null)
                   }}
                   onBlur={(e) => autoFillName(e.target.value)}
                   placeholder="AMZN, BONS.TA"
                   maxLength={12}
                   className={`w-full px-3 py-2 rounded bg-gray-800 border text-white text-sm focus:outline-none ${
-                    addErrors.ticker || tickerError ? 'border-red-500' : 'border-gray-700 focus:border-blue-500'
+                    addErrors.ticker ? 'border-red-500' : 'border-gray-700 focus:border-blue-500'
                   }`}
                 />
                 {addErrors.ticker && <p className="text-red-400 text-xs mt-1">{addErrors.ticker}</p>}
-                {tickerError && <p className="text-red-400 text-xs mt-1">{tickerError}</p>}
               </div>
 
               {/* Quantity */}
@@ -858,7 +852,6 @@ export default function PortfolioTab({
                 onClick={() => {
                   setShowAddModal(false)
                   setAddErrors({})
-                  setTickerError(null)
                 }}
                 disabled={addingHolding}
                 className="px-4 py-2 rounded-lg bg-gray-800 text-gray-200 hover:bg-gray-700 transition-colors disabled:opacity-50"
