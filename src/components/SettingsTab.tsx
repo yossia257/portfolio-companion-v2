@@ -29,12 +29,18 @@ export default function SettingsTab({ onHoldingUpdated }: SettingsTabProps) {
     tax_sensitivity: '',
   })
 
-  // Sync display name when profile loads
+  // Sync display name and investment profile when profile loads
   useEffect(() => {
     if (profile) {
       setDisplayName(profile.display_name || '')
-      // Note: Investment profile fields will be added to DB schema in next phase
-      // For now, keep them as local state only (not persisted yet)
+      setInvestmentProfile({
+        investment_horizon: (profile as any)?.investment_horizon || '',
+        risk_tolerance: (profile as any)?.risk_tolerance || '',
+        portfolio_style: (profile as any)?.portfolio_style || '',
+        themes_interest: (profile as any)?.themes_interest || '',
+        themes_avoid: (profile as any)?.themes_avoid || '',
+        tax_sensitivity: (profile as any)?.tax_sensitivity || '',
+      })
     }
   }, [profile])
 
@@ -162,9 +168,12 @@ export default function SettingsTab({ onHoldingUpdated }: SettingsTabProps) {
   }
 
   async function handleInvestmentProfileChange(field: string, value: string) {
-    // For now, just update local state (DB columns don't exist yet)
     setInvestmentProfile((prev) => ({ ...prev, [field]: value }))
-    // Note: Persistence to database will be added when schema is updated with these columns
+    const success = await updateProfile({ [field]: value || null })
+    if (success) {
+      setSaved(true)
+      setTimeout(() => setSaved(false), 2000)
+    }
   }
 
   if (loading) {
@@ -272,7 +281,7 @@ export default function SettingsTab({ onHoldingUpdated }: SettingsTabProps) {
       {/* Investment Profile Section */}
       <div className="mb-8">
         <h2 className="text-lg font-semibold mb-2">🎯 Investment Profile</h2>
-        <p className="text-sm text-gray-400 mb-6">Helps Claude generate suggestions tailored to your style. All fields optional. (Session only — not persisted yet)</p>
+        <p className="text-sm text-gray-400 mb-6">Helps Claude generate suggestions tailored to your style. All fields optional.</p>
 
         <div className="space-y-6">
           {/* Investment Horizon */}

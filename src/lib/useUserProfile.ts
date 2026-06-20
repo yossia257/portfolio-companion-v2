@@ -34,10 +34,10 @@ export function useUserProfile() {
         const userId = sessionData.session.user.id
         const userEmail = sessionData.session.user.email
 
-        // Fetch profile with basic fields (investment profile fields not in DB yet)
+        // Fetch all profile fields including investment profile
         const { data: profileData, error: fetchError } = await supabase
           .from('profiles')
-          .select('id, display_name, display_currency, ai_response_language')
+          .select('*')
           .eq('id', userId)
           .single()
 
