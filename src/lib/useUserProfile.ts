@@ -33,7 +33,7 @@ export function useUserProfile() {
 
         const { data: profileData, error: fetchError } = await supabase
           .from('profiles')
-          .select('id, display_name, display_currency, ai_response_language')
+          .select('id, display_name, display_currency, ai_response_language, tax_jurisdiction, investment_horizon, risk_tolerance, portfolio_style, themes_interest, themes_avoid, tax_sensitivity')
           .eq('id', userId)
           .single()
 
