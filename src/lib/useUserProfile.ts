@@ -22,7 +22,10 @@ export function useUserProfile() {
 
       try {
         const { data: sessionData } = await supabase.auth.getSession()
+        console.log('[useUserProfile] Session data:', sessionData)
+
         if (!sessionData?.session?.user) {
+          console.error('[useUserProfile] No session user found')
           setError('Not authenticated')
           setLoading(false)
           return
@@ -31,24 +34,39 @@ export function useUserProfile() {
         const userId = sessionData.session.user.id
         const userEmail = sessionData.session.user.email
 
-        // Fetch all profile fields including investment profile
-        const { data: profileData, error: fetchError } = await supabase
+        // Try with all fields first
+        let { data: profileData, error: fetchError } = await supabase
           .from('profiles')
           .select('id, display_name, display_currency, ai_response_language, tax_jurisdiction, investment_horizon, risk_tolerance, portfolio_style, themes_interest, themes_avoid, tax_sensitivity')
           .eq('id', userId)
           .single()
 
+        // If that fails, try with just basic fields
         if (fetchError) {
-          setError(fetchError.message)
-          return
+          console.warn('[useUserProfile] Full select failed, trying basic fields:', fetchError)
+          const { data: basicData, error: basicError } = await supabase
+            .from('profiles')
+            .select('id, display_name, display_currency, ai_response_language')
+            .eq('id', userId)
+            .single()
+
+          if (basicError) {
+            console.error('[useUserProfile] Basic select also failed:', basicError)
+            setError(basicError.message)
+            return
+          }
+          profileData = basicData as any
         }
 
+        console.log('[useUserProfile] Profile data loaded:', profileData)
         setProfile({
           ...profileData,
           email: userEmail,
         } as UserProfile)
       } catch (e) {
-        setError(e instanceof Error ? e.message : 'Unknown error')
+        const errorMsg = e instanceof Error ? e.message : 'Unknown error'
+        console.error('[useUserProfile] Catch error:', errorMsg, e)
+        setError(errorMsg)
       } finally {
         setLoading(false)
       }
