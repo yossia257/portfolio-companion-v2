@@ -9,7 +9,11 @@ interface ArchivedHolding {
   deleted_at: string
 }
 
-export default function SettingsTab() {
+interface SettingsTabProps {
+  onHoldingUpdated?: () => Promise<void>
+}
+
+export default function SettingsTab({ onHoldingUpdated }: SettingsTabProps) {
   const { profile, updateProfile, loading } = useUserProfile()
   const [saved, setSaved] = useState(false)
   const [displayName, setDisplayName] = useState('')
@@ -97,8 +101,11 @@ export default function SettingsTab() {
       document.body.appendChild(toastDiv)
       setTimeout(() => toastDiv.remove(), 2000)
 
-      // Refetch archived holdings
+      // Refetch archived holdings and portfolio data
       await fetchArchivedHoldings()
+      if (onHoldingUpdated) {
+        await onHoldingUpdated()
+      }
     } catch (e) {
       console.error('Error restoring holding:', e)
     } finally {

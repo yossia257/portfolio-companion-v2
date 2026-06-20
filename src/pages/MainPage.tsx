@@ -441,7 +441,7 @@ export default function MainPage({
           />
         )}
 
-        {!loading && holdings !== null && activeTab === 'settings' && <SettingsTab />}
+        {!loading && holdings !== null && activeTab === 'settings' && <SettingsTab onHoldingUpdated={refetchHoldings} />}
       </main>
     </div>
   )
