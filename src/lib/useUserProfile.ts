@@ -74,6 +74,7 @@ export function useUserProfile() {
         .eq('id', profile.id)
 
       if (error) {
+        console.error('[updateProfile] Error:', error)
         setError(error.message)
         return false
       }
@@ -82,7 +83,9 @@ export function useUserProfile() {
       setProfile({ ...profile, ...updates })
       return true
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Unknown error')
+      const errorMsg = e instanceof Error ? e.message : 'Unknown error'
+      console.error('[updateProfile] Catch error:', errorMsg, e)
+      setError(errorMsg)
       return false
     }
   }

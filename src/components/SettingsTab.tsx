@@ -169,10 +169,14 @@ export default function SettingsTab({ onHoldingUpdated }: SettingsTabProps) {
 
   async function handleInvestmentProfileChange(field: string, value: string) {
     setInvestmentProfile((prev) => ({ ...prev, [field]: value }))
-    const success = await updateProfile({ [field]: value || null })
-    if (success) {
-      setSaved(true)
-      setTimeout(() => setSaved(false), 2000)
+    try {
+      const success = await updateProfile({ [field]: value || null })
+      if (success) {
+        setSaved(true)
+        setTimeout(() => setSaved(false), 2000)
+      }
+    } catch (e) {
+      console.error(`[handleInvestmentProfileChange] Error saving ${field}:`, e)
     }
   }
 
