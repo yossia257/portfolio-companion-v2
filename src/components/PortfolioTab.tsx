@@ -278,7 +278,9 @@ export default function PortfolioTab({
       const res = await supabase.functions.invoke('lookup-ticker-name', {
         body: { ticker: ticker.toUpperCase() },
       })
-      const { name } = res.data || {}
+      // res.data is a JSON string, need to parse it
+      const data = typeof res.data === 'string' ? JSON.parse(res.data) : res.data
+      const { name } = data || {}
       console.log('[autoFillName] Finnhub lookup:', { ticker, name, response: res })
       if (name && !addFormData.name) {
         setAddFormData((prev) => ({ ...prev, name }))
