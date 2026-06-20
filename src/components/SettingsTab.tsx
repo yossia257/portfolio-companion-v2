@@ -169,13 +169,6 @@ export default function SettingsTab({ onHoldingUpdated }: SettingsTabProps) {
 
   async function handleInvestmentProfileChange(field: string, value: string) {
     setInvestmentProfile((prev) => ({ ...prev, [field]: value }))
-
-    // Skip database save for tax_sensitivity until constraint is clarified
-    if (field === 'tax_sensitivity') {
-      console.log('[handleInvestmentProfileChange] Skipping tax_sensitivity save (constraint issue)')
-      return
-    }
-
     try {
       const success = await updateProfile({ [field]: value || null })
       if (success) {
@@ -383,9 +376,9 @@ export default function SettingsTab({ onHoldingUpdated }: SettingsTabProps) {
               className="w-full px-3 py-2 rounded bg-gray-800 border border-gray-700 text-white text-sm focus:outline-none focus:border-blue-500"
             >
               <option value="">—</option>
-              <option value="tax_aware">Tax-aware — prefer to defer gains; weight tax cost when suggesting position changes</option>
               <option value="neutral">Neutral — tax not a current priority</option>
             </select>
+            <p className="text-xs text-gray-600 mt-2">Note: Tax-aware option coming in future update</p>
           </div>
         </div>
       </div>
