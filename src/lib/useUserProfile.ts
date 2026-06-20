@@ -34,28 +34,17 @@ export function useUserProfile() {
         const userId = sessionData.session.user.id
         const userEmail = sessionData.session.user.email
 
-        // Try with all fields first
-        let { data: profileData, error: fetchError } = await supabase
+        // Fetch profile with basic fields (investment profile fields not in DB yet)
+        const { data: profileData, error: fetchError } = await supabase
           .from('profiles')
-          .select('id, display_name, display_currency, ai_response_language, tax_jurisdiction, investment_horizon, risk_tolerance, portfolio_style, themes_interest, themes_avoid, tax_sensitivity')
+          .select('id, display_name, display_currency, ai_response_language')
           .eq('id', userId)
           .single()
 
-        // If that fails, try with just basic fields
         if (fetchError) {
-          console.warn('[useUserProfile] Full select failed, trying basic fields:', fetchError)
-          const { data: basicData, error: basicError } = await supabase
-            .from('profiles')
-            .select('id, display_name, display_currency, ai_response_language')
-            .eq('id', userId)
-            .single()
-
-          if (basicError) {
-            console.error('[useUserProfile] Basic select also failed:', basicError)
-            setError(basicError.message)
-            return
-          }
-          profileData = basicData as any
+          console.error('[useUserProfile] Profile select failed:', fetchError)
+          setError(fetchError.message)
+          return
         }
 
         console.log('[useUserProfile] Profile data loaded:', profileData)

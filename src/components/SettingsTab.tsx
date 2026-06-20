@@ -33,14 +33,8 @@ export default function SettingsTab({ onHoldingUpdated }: SettingsTabProps) {
   useEffect(() => {
     if (profile) {
       setDisplayName(profile.display_name || '')
-      setInvestmentProfile({
-        investment_horizon: (profile as any)?.investment_horizon || '',
-        risk_tolerance: (profile as any)?.risk_tolerance || '',
-        portfolio_style: (profile as any)?.portfolio_style || '',
-        themes_interest: (profile as any)?.themes_interest || '',
-        themes_avoid: (profile as any)?.themes_avoid || '',
-        tax_sensitivity: (profile as any)?.tax_sensitivity || '',
-      })
+      // Note: Investment profile fields will be added to DB schema in next phase
+      // For now, keep them as local state only (not persisted yet)
     }
   }, [profile])
 
