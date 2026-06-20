@@ -215,8 +215,39 @@ export default function PortfolioTab({
   onHoldingUpdated,
 }: PortfolioTabProps) {
   const [selectedHolding, setSelectedHolding] = useState<Holding | null>(null)
+  const [deleteConfirm, setDeleteConfirm] = useState<Holding | null>(null)
+  const [deleting, setDeleting] = useState(false)
 
   const list = holdings ?? []
+
+  async function handleConfirmDelete(holding: Holding) {
+    setDeleting(true)
+    try {
+      const now = new Date().toISOString()
+      await supabase
+        .from('holdings')
+        .update({ deleted_at: now })
+        .eq('id', holding.id)
+
+      setDeleteConfirm(null)
+
+      // Show toast
+      const toastDiv = document.createElement('div')
+      toastDiv.className = 'fixed bottom-4 right-4 px-4 py-2 rounded-lg bg-amber-600/20 border border-amber-600/50 text-sm text-amber-300 animate-fade-out'
+      toastDiv.textContent = `Deleted ${holding.ticker} (undo in Settings)`
+      document.body.appendChild(toastDiv)
+      setTimeout(() => toastDiv.remove(), 2000)
+
+      // Refetch holdings
+      if (onHoldingUpdated) {
+        await onHoldingUpdated()
+      }
+    } catch (e) {
+      console.error('Delete failed:', e)
+    } finally {
+      setDeleting(false)
+    }
+  }
 
   // Calculate KPIs from raw holdings (unsorted, for aggregate values)
   let totalNis: number | null = null
@@ -410,6 +441,11 @@ export default function PortfolioTab({
                   >
                     Category
                   </th>
+                  <th
+                    className="px-4 py-3 text-right font-medium text-gray-400"
+                  >
+                    {/* Delete column header */}
+                  </th>
                 </tr>
               </thead>
               <tbody>
@@ -552,6 +588,18 @@ export default function PortfolioTab({
                           onSave={onHoldingUpdated}
                         />
                       </td>
+
+                      {/* Delete action */}
+                      <td className="px-4 py-3 text-right">
+                        <button
+                          onClick={() => setDeleteConfirm(h)}
+                          className="p-1 text-gray-500 hover:text-red-400 transition-colors"
+                          aria-label="Delete holding"
+                          title="Delete holding"
+                        >
+                          🗑️
+                        </button>
+                      </td>
                     </tr>
                   )
                 })}
@@ -574,6 +622,34 @@ export default function PortfolioTab({
           priceEntry={prices[selectedHolding.ticker]}
           onClose={() => setSelectedHolding(null)}
         />
+      )}
+
+      {/* Delete confirmation modal */}
+      {deleteConfirm && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-gray-900 border border-gray-800 rounded-lg max-w-sm w-full p-6">
+            <h2 className="text-lg font-semibold mb-2">Delete {deleteConfirm.ticker} from your portfolio?</h2>
+            <p className="text-sm text-gray-400 mb-6">
+              This can be undone for 30 days from Settings → Archived holdings.
+            </p>
+            <div className="flex gap-3 justify-end">
+              <button
+                onClick={() => setDeleteConfirm(null)}
+                disabled={deleting}
+                className="px-4 py-2 rounded-lg bg-gray-800 text-gray-200 hover:bg-gray-700 transition-colors disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => handleConfirmDelete(deleteConfirm)}
+                disabled={deleting}
+                className="px-4 py-2 rounded-lg bg-red-600 text-white hover:bg-red-500 transition-colors disabled:opacity-50"
+              >
+                {deleting ? 'Deleting…' : 'Delete'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </>
   )
