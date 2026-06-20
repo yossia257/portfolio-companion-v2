@@ -275,10 +275,12 @@ export default function PortfolioTab({
     if (!ticker || ticker.endsWith('.TA') || addFormData.name) return
 
     try {
-      const res = await fetch(`https://finnhub.io/api/v1/stock/profile2?symbol=${ticker.toUpperCase()}&token=cskof1pr01qshuvsq6k0cskof1pr01qshuvsq6k0`)
-      const data = await res.json()
-      if (data.name && !addFormData.name) {
-        setAddFormData((prev) => ({ ...prev, name: data.name }))
+      const res = await supabase.functions.invoke('lookup-ticker-name', {
+        body: { ticker: ticker.toUpperCase() },
+      })
+      const { name } = res.data || {}
+      if (name && !addFormData.name) {
+        setAddFormData((prev) => ({ ...prev, name }))
       }
     } catch (e) {
       // Fail silently if API fails
