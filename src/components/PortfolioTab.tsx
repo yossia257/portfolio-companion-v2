@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
+import { supabase } from '../lib/supabase'
 import type { PriceMap } from '../lib/prices'
 import DrillDownPanel from './DrillDownPanel'
 
@@ -16,6 +17,126 @@ interface Holding {
   currency: string | null
   buy_price: number | string | null
   category: string | null
+}
+
+// ── Editable Cell Component ────────────────────────────────────────────────
+
+interface EditableCellProps {
+  value: string | number | null
+  type: 'quantity' | 'buyPrice' | 'category'
+  holdingId: string
+  onSave: (value: any) => void
+  format?: (v: any) => string
+  prefix?: string
+}
+
+function EditableCell({ value, type, holdingId, onSave, format, prefix }: EditableCellProps) {
+  const [isEditing, setIsEditing] = useState(false)
+  const [editValue, setEditValue] = useState(String(value ?? ''))
+  const [error, setError] = useState<string | null>(null)
+  const [saved, setSaved] = useState(false)
+  const escapePressedRef = useRef(false)
+
+  const displayValue = format ? format(value) : value ?? '—'
+
+  async function handleSave(val: string) {
+    setError(null)
+
+    let parsedValue: any = val
+    let fieldName: string = type
+
+    if (type === 'quantity') {
+      parsedValue = Number(val)
+      if (parsedValue <= 0 || isNaN(parsedValue)) {
+        setError('Quantity must be > 0')
+        return
+      }
+      fieldName = 'quantity'
+    } else if (type === 'buyPrice') {
+      parsedValue = Number(val)
+      if (parsedValue < 0 || isNaN(parsedValue)) {
+        setError('Buy price must be ≥ 0')
+        return
+      }
+      fieldName = 'buy_price'
+    } else if (type === 'category') {
+      if (val.length > 50) {
+        setError('Max 50 characters')
+        return
+      }
+      parsedValue = val || null
+      fieldName = 'category'
+    }
+
+    try {
+      await supabase
+        .from('holdings')
+        .update({ [fieldName]: parsedValue })
+        .eq('id', holdingId)
+
+      setSaved(true)
+      setTimeout(() => setSaved(false), 1500)
+      setIsEditing(false)
+      onSave(parsedValue)
+    } catch (e) {
+      setError('Failed to save')
+      console.error(e)
+    }
+  }
+
+  function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+    if (e.key === 'Escape') {
+      escapePressedRef.current = true
+      setIsEditing(false)
+      setEditValue(String(value ?? ''))
+      setError(null)
+    } else if (e.key === 'Enter') {
+      e.preventDefault()
+      handleSave(editValue)
+    }
+  }
+
+  function handleBlur() {
+    if (!escapePressedRef.current && editValue !== String(value ?? '')) {
+      handleSave(editValue)
+    } else if (escapePressedRef.current) {
+      setEditValue(String(value ?? ''))
+    }
+    escapePressedRef.current = false
+    setIsEditing(false)
+  }
+
+  if (!isEditing) {
+    return (
+      <div
+        className="cursor-pointer hover:text-blue-400 transition-colors py-1 relative group"
+        onClick={() => setIsEditing(true)}
+      >
+        <span>{prefix}{displayValue}</span>
+        <span className="absolute -right-4 opacity-0 group-hover:opacity-100 transition-opacity text-gray-500">✎</span>
+        {saved && <span className="text-green-400 text-xs ml-1">✓</span>}
+      </div>
+    )
+  }
+
+  return (
+    <div className="relative">
+      <input
+        autoFocus
+        type={type === 'category' ? 'text' : 'number'}
+        value={editValue}
+        onChange={(e) => setEditValue(e.target.value)}
+        onKeyDown={handleKeyDown}
+        onBlur={handleBlur}
+        step={type === 'buyPrice' ? '0.01' : undefined}
+        min={type === 'quantity' ? '0.0001' : type === 'buyPrice' ? '0' : undefined}
+        className={`px-2 py-1 w-full rounded bg-gray-800 border text-white text-sm focus:outline-none ${
+          error ? 'border-red-500' : 'border-blue-500'
+        }`}
+      />
+      {error && <div className="text-red-400 text-xs mt-1 absolute">{error}</div>}
+    </div>
+  )
 }
 
 interface Profile {
@@ -279,6 +400,11 @@ export default function PortfolioTab({
                   >
                     P&amp;L % {sortState.column === 'pnl_pct' && (sortState.direction === 'asc' ? '▲' : '▼')}
                   </th>
+                  <th
+                    className="px-4 py-3 text-left font-medium text-gray-400"
+                  >
+                    Category
+                  </th>
                 </tr>
               </thead>
               <tbody>
@@ -321,12 +447,25 @@ export default function PortfolioTab({
 
                       {/* Qty */}
                       <td className="px-4 py-3 text-right text-gray-200 tabular-nums">
-                        {fmtQty(h.quantity)}
+                        <EditableCell
+                          value={h.quantity}
+                          type="quantity"
+                          holdingId={h.id}
+                          onSave={() => {}}
+                          format={fmtQty}
+                        />
                       </td>
 
                       {/* Buy Price */}
                       <td className="px-4 py-3 text-right text-gray-200 tabular-nums">
-                        {h.buy_price != null ? `${ccySym}${fmtPrice(h.buy_price)}` : '—'}
+                        <EditableCell
+                          value={h.buy_price}
+                          type="buyPrice"
+                          holdingId={h.id}
+                          onSave={() => {}}
+                          format={(v) => v != null ? fmtPrice(v) : ''}
+                          prefix={h.buy_price != null ? ccySym : ''}
+                        />
                       </td>
 
                       {/* Current Price */}
@@ -397,6 +536,16 @@ export default function PortfolioTab({
                         ) : (
                           <span className="text-gray-600">—</span>
                         )}
+                      </td>
+
+                      {/* Category */}
+                      <td className="px-4 py-3 text-left text-gray-300">
+                        <EditableCell
+                          value={h.category}
+                          type="category"
+                          holdingId={h.id}
+                          onSave={() => {}}
+                        />
                       </td>
                     </tr>
                   )
