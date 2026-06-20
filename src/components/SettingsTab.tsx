@@ -20,11 +20,27 @@ export default function SettingsTab({ onHoldingUpdated }: SettingsTabProps) {
   const [archivedHoldings, setArchivedHoldings] = useState<ArchivedHolding[]>([])
   const [archivedLoading, setArchivedLoading] = useState(false)
   const [restoringId, setRestoringId] = useState<string | null>(null)
+  const [investmentProfile, setInvestmentProfile] = useState({
+    investment_horizon: '',
+    risk_tolerance: '',
+    portfolio_style: '',
+    themes_interest: '',
+    themes_avoid: '',
+    tax_sensitivity: '',
+  })
 
   // Sync display name when profile loads
   useEffect(() => {
     if (profile) {
       setDisplayName(profile.display_name || '')
+      setInvestmentProfile({
+        investment_horizon: (profile as any)?.investment_horizon || '',
+        risk_tolerance: (profile as any)?.risk_tolerance || '',
+        portfolio_style: (profile as any)?.portfolio_style || '',
+        themes_interest: (profile as any)?.themes_interest || '',
+        themes_avoid: (profile as any)?.themes_avoid || '',
+        tax_sensitivity: (profile as any)?.tax_sensitivity || '',
+      })
     }
   }, [profile])
 
@@ -151,6 +167,15 @@ export default function SettingsTab({ onHoldingUpdated }: SettingsTabProps) {
     await supabase.auth.signOut()
   }
 
+  async function handleInvestmentProfileChange(field: string, value: string) {
+    setInvestmentProfile((prev) => ({ ...prev, [field]: value }))
+    const success = await updateProfile({ [field]: value || null })
+    if (success) {
+      setSaved(true)
+      setTimeout(() => setSaved(false), 2000)
+    }
+  }
+
   if (loading) {
     return (
       <div className="px-6 py-8 max-w-3xl w-full mx-auto">
@@ -249,6 +274,107 @@ export default function SettingsTab({ onHoldingUpdated }: SettingsTabProps) {
               <option value="OTHER">Other</option>
             </select>
             <p className="text-xs text-gray-600 mt-2">Used for tax calculation rules and RSU estimates</p>
+          </div>
+        </div>
+      </div>
+
+      {/* Investment Profile Section */}
+      <div className="mb-8">
+        <h2 className="text-lg font-semibold mb-2">🎯 Investment Profile</h2>
+        <p className="text-sm text-gray-400 mb-6">Helps Claude generate suggestions tailored to your style. All fields optional.</p>
+
+        <div className="space-y-6">
+          {/* Investment Horizon */}
+          <div>
+            <label className="block text-xs text-gray-500 uppercase tracking-wider mb-2">Investment Horizon</label>
+            <select
+              value={investmentProfile.investment_horizon}
+              onChange={(e) => handleInvestmentProfileChange('investment_horizon', e.target.value)}
+              className="w-full px-3 py-2 rounded bg-gray-800 border border-gray-700 text-white text-sm focus:outline-none focus:border-blue-500"
+            >
+              <option value="">—</option>
+              <option value="short">Short-term (&lt; 6 months) — active deployment, near-term needs</option>
+              <option value="medium_short">Medium short (6 months – 2 years) — bonus deployment, planned purchases</option>
+              <option value="medium">Medium (2–5 years) — general planning</option>
+              <option value="long">Long (5+ years) — retirement, generational wealth</option>
+              <option value="mixed">Mixed (multiple horizons across positions)</option>
+            </select>
+          </div>
+
+          {/* Risk Tolerance */}
+          <div>
+            <label className="block text-xs text-gray-500 uppercase tracking-wider mb-2">Risk Tolerance</label>
+            <select
+              value={investmentProfile.risk_tolerance}
+              onChange={(e) => handleInvestmentProfileChange('risk_tolerance', e.target.value)}
+              className="w-full px-3 py-2 rounded bg-gray-800 border border-gray-700 text-white text-sm focus:outline-none focus:border-blue-500"
+            >
+              <option value="">—</option>
+              <option value="low">Low — capital preservation primary, low volatility</option>
+              <option value="medium">Medium — balanced; moderate volatility OK</option>
+              <option value="high">High — comfortable with leverage, crypto, volatility</option>
+            </select>
+          </div>
+
+          {/* Portfolio Style */}
+          <div>
+            <label className="block text-xs text-gray-500 uppercase tracking-wider mb-2">Portfolio Style</label>
+            <select
+              value={investmentProfile.portfolio_style}
+              onChange={(e) => handleInvestmentProfileChange('portfolio_style', e.target.value)}
+              className="w-full px-3 py-2 rounded bg-gray-800 border border-gray-700 text-white text-sm focus:outline-none focus:border-blue-500"
+            >
+              <option value="">—</option>
+              <option value="focused">Focused (high-conviction positions, 10–15 holdings)</option>
+              <option value="diversified_sector">Diversified by sector (spread across industries)</option>
+              <option value="diversified_global">Diversified globally (multi-region + multi-sector)</option>
+              <option value="opportunistic">Opportunistic / flexible (no fixed structure)</option>
+            </select>
+          </div>
+
+          {/* Themes of Interest */}
+          <div>
+            <label className="block text-xs text-gray-500 uppercase tracking-wider mb-2">Themes of Interest (optional)</label>
+            <textarea
+              value={investmentProfile.themes_interest}
+              onChange={(e) => handleInvestmentProfileChange('themes_interest', e.target.value.slice(0, 500))}
+              placeholder="e.g., cybersecurity, longevity, quantum computing, India growth, AI infrastructure"
+              maxLength={500}
+              className="w-full px-3 py-2 rounded bg-gray-800 border border-gray-700 text-white text-sm focus:outline-none focus:border-blue-500 resize-none"
+              rows={3}
+            />
+            <p className="text-xs text-gray-600 mt-1">{investmentProfile.themes_interest.length}/500 characters</p>
+          </div>
+
+          {/* Themes to Avoid */}
+          <div>
+            <label className="block text-xs text-gray-500 uppercase tracking-wider mb-2">Themes to Avoid (optional)</label>
+            <textarea
+              value={investmentProfile.themes_avoid}
+              onChange={(e) => handleInvestmentProfileChange('themes_avoid', e.target.value.slice(0, 500))}
+              placeholder="e.g., tobacco, defense, gambling, leveraged ETFs, single-name biotech"
+              maxLength={500}
+              className="w-full px-3 py-2 rounded bg-gray-800 border border-gray-700 text-white text-sm focus:outline-none focus:border-blue-500 resize-none"
+              rows={3}
+            />
+            <p className="text-xs text-gray-600 mt-1">
+              {investmentProfile.themes_avoid.length}/500 characters
+            </p>
+            <p className="text-xs text-gray-500 mt-2">💡 These will be excluded from AI suggestions strictly.</p>
+          </div>
+
+          {/* Tax Sensitivity */}
+          <div>
+            <label className="block text-xs text-gray-500 uppercase tracking-wider mb-2">Tax Sensitivity</label>
+            <select
+              value={investmentProfile.tax_sensitivity}
+              onChange={(e) => handleInvestmentProfileChange('tax_sensitivity', e.target.value)}
+              className="w-full px-3 py-2 rounded bg-gray-800 border border-gray-700 text-white text-sm focus:outline-none focus:border-blue-500"
+            >
+              <option value="">—</option>
+              <option value="tax_aware">Tax-aware — prefer to defer gains; weight tax cost when suggesting position changes</option>
+              <option value="neutral">Neutral — tax not a current priority</option>
+            </select>
           </div>
         </div>
       </div>
