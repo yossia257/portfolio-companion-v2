@@ -267,6 +267,7 @@ export default function PortfolioTab({
       .from('holdings')
       .select('id')
       .eq('ticker', ticker.toUpperCase())
+      .is('deleted_at', null)
       .maybeSingle()
     return !!data
   }
