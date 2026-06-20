@@ -279,11 +279,12 @@ export default function PortfolioTab({
         body: { ticker: ticker.toUpperCase() },
       })
       const { name } = res.data || {}
+      console.log('[autoFillName] Finnhub lookup:', { ticker, name, response: res })
       if (name && !addFormData.name) {
         setAddFormData((prev) => ({ ...prev, name }))
       }
     } catch (e) {
-      // Fail silently if API fails
+      console.error('[autoFillName] Error:', e)
     }
   }
 
