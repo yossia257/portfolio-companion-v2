@@ -169,6 +169,13 @@ export default function SettingsTab({ onHoldingUpdated }: SettingsTabProps) {
 
   async function handleInvestmentProfileChange(field: string, value: string) {
     setInvestmentProfile((prev) => ({ ...prev, [field]: value }))
+
+    // Skip database save for tax_sensitivity until constraint is clarified
+    if (field === 'tax_sensitivity') {
+      console.log('[handleInvestmentProfileChange] Skipping tax_sensitivity save (constraint issue)')
+      return
+    }
+
     try {
       const success = await updateProfile({ [field]: value || null })
       if (success) {
