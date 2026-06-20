@@ -31,9 +31,10 @@ export function useUserProfile() {
         const userId = sessionData.session.user.id
         const userEmail = sessionData.session.user.email
 
+        // Fetch all profile fields (including investment profile fields when they exist)
         const { data: profileData, error: fetchError } = await supabase
           .from('profiles')
-          .select('id, display_name, display_currency, ai_response_language, tax_jurisdiction, investment_horizon, risk_tolerance, portfolio_style, themes_interest, themes_avoid, tax_sensitivity')
+          .select('*')
           .eq('id', userId)
           .single()
 
@@ -45,7 +46,7 @@ export function useUserProfile() {
         setProfile({
           ...profileData,
           email: userEmail,
-        })
+        } as UserProfile)
       } catch (e) {
         setError(e instanceof Error ? e.message : 'Unknown error')
       } finally {
