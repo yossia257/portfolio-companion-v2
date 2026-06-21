@@ -338,7 +338,8 @@ async function streamResponse(anthropicRes: Response, userId: string): Promise<R
             // Forward content_block_delta events (the actual text)
             if (event.type === 'content_block_delta' && event.delta?.type === 'text_delta') {
               const token = event.delta.text || ''
-              await writer.write(new TextEncoder().encode(`data: ${token}\n\n`))
+              const sseChunk = `data: ${JSON.stringify({ type: 'token', text: token })}\n\n`
+              await writer.write(new TextEncoder().encode(sseChunk))
             }
           } catch (e) {
             console.warn('[ask-claude] Failed to parse event:', e)
@@ -346,8 +347,9 @@ async function streamResponse(anthropicRes: Response, userId: string): Promise<R
         }
       }
 
-      // Send final marker
-      await writer.write(new TextEncoder().encode('data: [DONE]\n\n'))
+      // Send final marker (JSON format)
+      const doneChunk = `data: ${JSON.stringify({ type: 'done' })}\n\n`
+      await writer.write(new TextEncoder().encode(doneChunk))
 
       // Log usage
       if (inputTokens > 0 || outputTokens > 0) {
@@ -374,7 +376,8 @@ async function streamResponse(anthropicRes: Response, userId: string): Promise<R
     } catch (error) {
       console.error('[ask-claude] Stream processing error:', error)
       try {
-        await writer.write(new TextEncoder().encode(`data: [ERROR]\n\n`))
+        const errorChunk = `data: ${JSON.stringify({ type: 'error', message: 'Stream processing failed' })}\n\n`
+        await writer.write(new TextEncoder().encode(errorChunk))
         await writer.close()
       } catch {
         // Already closed

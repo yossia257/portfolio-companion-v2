@@ -93,30 +93,41 @@ export default function AskClaudeTab() {
 
         for (const line of lines) {
           if (line.startsWith('data: ')) {
-            const data = line.slice(6)
+            const dataLine = line.slice(6).trim()
 
-            if (data === '[DONE]') {
-              setIsStreaming(false)
-              break
-            }
+            // Skip empty lines
+            if (!dataLine) continue
 
             try {
-              const parsed = JSON.parse(data)
-              const token = parsed.token || ''
+              const parsed = JSON.parse(dataLine)
 
-              // Append token to the last message
-              setMessages((prev) => {
-                const updated = [...prev]
-                if (updated[updated.length - 1]?.role === 'assistant') {
-                  updated[updated.length - 1] = {
-                    ...updated[updated.length - 1],
-                    content: updated[updated.length - 1].content + token,
+              // Handle token events
+              if (parsed.type === 'token' && typeof parsed.text === 'string') {
+                setMessages((prev) => {
+                  const updated = [...prev]
+                  if (updated[updated.length - 1]?.role === 'assistant') {
+                    updated[updated.length - 1] = {
+                      ...updated[updated.length - 1],
+                      content: updated[updated.length - 1].content + parsed.text,
+                    }
                   }
-                }
-                return updated
-              })
+                  return updated
+                })
+              }
+              // Handle done event
+              else if (parsed.type === 'done') {
+                setIsStreaming(false)
+                break
+              }
+              // Handle error event
+              else if (parsed.type === 'error') {
+                console.error('[AskClaudeTab] Stream error:', parsed.message)
+                setError(parsed.message || 'Streaming error')
+                setIsStreaming(false)
+                break
+              }
             } catch (e) {
-              console.error('[AskClaudeTab] Failed to parse SSE data:', e)
+              console.error('[AskClaudeTab] Failed to parse SSE data:', e, 'raw:', dataLine)
             }
           }
         }
