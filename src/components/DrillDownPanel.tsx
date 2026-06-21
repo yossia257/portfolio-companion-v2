@@ -17,7 +17,8 @@ interface Holding {
 }
 
 export interface DrillDownPanelProps {
-  holding: Holding
+  holding: Holding | null
+  watchlistTicker?: string
   priceEntry: PriceEntry | ErrorEntry | undefined
   onClose: () => void
   rsuContext?: {
@@ -110,7 +111,7 @@ function Stat({ label, value }: { label: string; value: string }) {
 
 // ── Component ──────────────────────────────────────────────────────────────
 
-export default function DrillDownPanel({ holding, priceEntry, onClose, rsuContext }: DrillDownPanelProps) {
+export default function DrillDownPanel({ holding, watchlistTicker, priceEntry, onClose, rsuContext }: DrillDownPanelProps) {
   const [isVisible, setIsVisible] = useState(false)
   const [research, setResearch] = useState<ResearchCacheRow | null>(null)
   const [language, setLanguage] = useState<string>('en')
@@ -150,26 +151,31 @@ export default function DrillDownPanel({ holding, priceEntry, onClose, rsuContex
 
   // Fetch research on open — check frontend cache first
   useEffect(() => {
-    const cached = getCached(holding.ticker)
+    const ticker = holding?.ticker ?? watchlistTicker
+    if (!ticker) return
+
+    const cached = getCached(ticker)
     if (cached) {
-      console.log(`[DrillDownPanel] Frontend cache hit for ${holding.ticker}`)
+      console.log(`[DrillDownPanel] Frontend cache hit for ${ticker}`)
       setResearch(cached)
       setError(null)
       return
     }
 
-    console.log(`[DrillDownPanel] Frontend cache miss for ${holding.ticker}; fetching...`)
+    console.log(`[DrillDownPanel] Frontend cache miss for ${ticker}; fetching...`)
     loadResearch(false)
-  }, [holding.ticker])
+  }, [holding?.ticker, watchlistTicker, getCached])
 
   // Fetch flags on open
   useEffect(() => {
+    if (!holding || !holding.id) return
+
     async function fetchFlags() {
       try {
         const { data, error } = await supabase
           .from('holdings')
           .select('flags')
-          .eq('id', holding.id)
+          .eq('id', holding!.id)
           .single()
 
         if (error) {
@@ -185,16 +191,16 @@ export default function DrillDownPanel({ holding, priceEntry, onClose, rsuContex
       }
     }
 
-    if (holding.id) {
-      fetchFlags()
-    }
-  }, [holding.id])
+    fetchFlags()
+  }, [holding?.id])
 
   async function loadResearch(force: boolean) {
+    const ticker = holding?.ticker ?? watchlistTicker
+    if (!ticker) return
     setError(null)
     try {
       const { data, error } = await supabase.functions.invoke('fetch-research', {
-        body: { ticker: holding.ticker, ...(force ? { force: true } : {}) },
+        body: { ticker, ...(force ? { force: true } : {}) },
       })
       if (error) throw new Error(error.message)
       const researchData = data?.research ?? null
@@ -202,7 +208,7 @@ export default function DrillDownPanel({ holding, priceEntry, onClose, rsuContex
       setLanguage(data?.language ?? 'en')
       // Store in frontend cache for next time
       if (researchData) {
-        setCached(holding.ticker, researchData)
+        setCached(ticker, researchData)
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to load research data.')
@@ -215,6 +221,7 @@ export default function DrillDownPanel({ holding, priceEntry, onClose, rsuContex
   }
 
   async function updateFlags(newFlags: typeof flags) {
+    if (!holding) return
     setFlags(newFlags)
     try {
       const { error } = await supabase
@@ -272,8 +279,8 @@ export default function DrillDownPanel({ holding, priceEntry, onClose, rsuContex
   const isLive = priceEntry != null && !('error' in priceEntry)
   const curPrice = isLive ? (priceEntry as PriceEntry).price : null
   const dailyChange = isLive ? (priceEntry as PriceEntry).daily_change_pct : null
-  const ccySym = holding.currency?.toUpperCase() === 'USD' ? '$' : '₪'
-  const buyPrice = holding.buy_price != null ? Number(holding.buy_price) : null
+  const ccySym = holding?.currency?.toUpperCase() === 'USD' ? '$' : '₪'
+  const buyPrice = holding && holding.buy_price != null ? Number(holding.buy_price) : null
   const pnl = curPrice && buyPrice && buyPrice !== 0
     ? ((curPrice - buyPrice) / buyPrice) * 100
     : null
@@ -307,7 +314,7 @@ export default function DrillDownPanel({ holding, priceEntry, onClose, rsuContex
         <div className="flex items-start justify-between px-5 py-4 border-b border-gray-800 shrink-0">
           <div>
             <div className="flex items-baseline gap-3">
-              <span className="font-mono text-2xl font-bold text-white">{holding.ticker}</span>
+              <span className="font-mono text-2xl font-bold text-white">{holding?.ticker ?? 'Watchlist'}</span>
               {curPrice != null && (
                 <span className="text-lg font-semibold text-white tabular-nums">
                   {ccySym}{fmtNum(curPrice)}
@@ -319,7 +326,7 @@ export default function DrillDownPanel({ holding, priceEntry, onClose, rsuContex
                 </span>
               )}
             </div>
-            {holding.name && (
+            {holding?.name && (
               <p className="text-sm text-gray-300 mt-0.5">{holding.name}</p>
             )}
             {/* Industry / sector tags from profile — rendered once research loads */}
@@ -346,31 +353,33 @@ export default function DrillDownPanel({ holding, priceEntry, onClose, rsuContex
         {/* ── Scrollable body ── */}
         <div className="flex-1 overflow-y-auto">
 
-          {/* ── My Position ── */}
-          <section className="px-5 py-4 border-b border-gray-800">
-            <h3 className="text-xs uppercase tracking-wider text-gray-500 mb-3">
-              {rsuContext ? 'RSU Grant' : 'My Position'}
-            </h3>
-            {rsuContext ? (
-              <div className="space-y-2 text-sm">
-                <p className="text-gray-300">
-                  Held via RSU grant — {rsuContext.quantity.toLocaleString()} shares vesting{' '}
-                  {new Date(rsuContext.vestDate).toLocaleDateString([], { year: 'numeric', month: 'short', day: 'numeric' })}
-                </p>
-                <p className="text-xs text-gray-500">
-                  View full grant details in the RSU tab
-                </p>
-              </div>
-            ) : (
-              <div className="grid grid-cols-3 gap-y-3 gap-x-4">
-                <Stat label="Quantity"   value={holding.quantity != null ? Number(holding.quantity).toLocaleString(undefined, { maximumFractionDigits: 4 }) : '—'} />
-                <Stat label="Buy Price"  value={buyPrice != null ? `${ccySym}${fmtNum(buyPrice)}` : '—'} />
-                <Stat label="P&L"        value={fmtPct(pnl)} />
-                <Stat label="Currency"   value={holding.currency ?? '—'} />
-                <Stat label="Category"   value={holding.category ?? '—'} />
-              </div>
-            )}
-          </section>
+          {/* ── My Position (only for owned holdings) ── */}
+          {holding && (
+            <section className="px-5 py-4 border-b border-gray-800">
+              <h3 className="text-xs uppercase tracking-wider text-gray-500 mb-3">
+                {rsuContext ? 'RSU Grant' : 'My Position'}
+              </h3>
+              {rsuContext ? (
+                <div className="space-y-2 text-sm">
+                  <p className="text-gray-300">
+                    Held via RSU grant — {rsuContext.quantity.toLocaleString()} shares vesting{' '}
+                    {new Date(rsuContext.vestDate).toLocaleDateString([], { year: 'numeric', month: 'short', day: 'numeric' })}
+                  </p>
+                  <p className="text-xs text-gray-500">
+                    View full grant details in the RSU tab
+                  </p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-3 gap-y-3 gap-x-4">
+                  <Stat label="Quantity"   value={holding.quantity != null ? Number(holding.quantity).toLocaleString(undefined, { maximumFractionDigits: 4 }) : '—'} />
+                  <Stat label="Buy Price"  value={buyPrice != null ? `${ccySym}${fmtNum(buyPrice)}` : '—'} />
+                  <Stat label="P&L"        value={fmtPct(pnl)} />
+                  <Stat label="Currency"   value={holding.currency ?? '—'} />
+                  <Stat label="Category"   value={holding.category ?? '—'} />
+                </div>
+              )}
+            </section>
+          )}
 
           {/* Error state */}
           {error && (

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import type { Session } from '@supabase/supabase-js'
 import { supabase } from '../lib/supabase'
 import { refreshPrices, fetchUsdToNis, type PriceMap, type MarketData } from '../lib/prices'
@@ -7,6 +7,7 @@ import TabBar from '../components/TabBar'
 import PortfolioTab from '../components/PortfolioTab'
 import RsuTab from '../components/RsuTab'
 import SignalsTab from '../components/SignalsTab'
+import WatchlistTab from '../components/WatchlistTab'
 import SettingsTab from '../components/SettingsTab'
 
 // ── Types ──────────────────────────────────────────────────────────────────
@@ -115,7 +116,7 @@ export default function MainPage({
   const [research, setResearch] = useState<Record<string, any>>({})
 
   const [sortState, setSortState] = useState(() => readSortState())
-  const [activeTab, setActiveTab] = useState<'portfolio' | 'rsu' | 'signals' | 'settings'>('portfolio')
+  const [activeTab, setActiveTab] = useState<'portfolio' | 'rsu' | 'signals' | 'watchlist' | 'settings'>('portfolio')
 
   const REFRESH_MS = 60 * 60 * 1000 // 60 minutes
 
@@ -156,6 +157,25 @@ export default function MainPage({
 
     setPricesLoading(false)
   }
+
+  const handleRefreshPricesForWatchlist = useCallback(
+    async (tickers: string[]) => {
+      await doRefreshPrices(
+        tickers.map((ticker) => ({ ticker, quantity: 0, currency: 'USD', buy_price: 0 } as Holding))
+      )
+    },
+    []
+  )
+
+  const handleFetchPricesForRsu = useCallback(
+    async (tickers: string[]) => {
+      const allTickers = [...new Set([...tickers, ...Object.keys(prices)])]
+      await doRefreshPrices(
+        allTickers.map((ticker) => ({ ticker, quantity: 0, currency: 'USD', buy_price: 0 } as Holding))
+      )
+    },
+    [prices]
+  )
 
   const portfolioIdRef = useRef<string | null>(null)
 
@@ -414,12 +434,7 @@ export default function MainPage({
         {!loading && holdings !== null && activeTab === 'rsu' && (
           <RsuTab
             prices={prices}
-            onFetchPrices={async (tickers) => {
-              const allTickers = [...new Set([...tickers, ...Object.keys(prices)])]
-              await doRefreshPrices(
-                allTickers.map((ticker) => ({ ticker, quantity: 0, currency: 'USD', buy_price: 0 } as Holding))
-              )
-            }}
+            onFetchPrices={handleFetchPricesForRsu}
           />
         )}
 
@@ -429,6 +444,14 @@ export default function MainPage({
             prices={prices}
             research={research}
             usdNisRate={usdNis ?? 3.75}
+          />
+        )}
+
+        {!loading && holdings !== null && activeTab === 'watchlist' && (
+          <WatchlistTab
+            prices={prices}
+            pricesLoading={pricesLoading}
+            onRefreshPrices={handleRefreshPricesForWatchlist}
           />
         )}
 
