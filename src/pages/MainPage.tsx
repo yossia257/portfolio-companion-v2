@@ -386,7 +386,7 @@ export default function MainPage({
       </div>
 
       {/* ── Body ── */}
-      <main className="flex-1 w-full">
+      <main className="flex-1 w-full max-w-full overflow-x-hidden">
 
         {/* Loading skeleton */}
         {loading && (

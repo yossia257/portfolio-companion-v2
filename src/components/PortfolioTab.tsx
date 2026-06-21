@@ -170,7 +170,7 @@ function fmtPrice(v: number | string | null): string {
 
 function fmtPct(v: number | null | undefined): string {
   if (v == null) return '—'
-  return (v >= 0 ? '+' : '') + v.toFixed(2) + '%'
+  return (v >= 0 ? '+' : '') + v.toFixed(1) + '%'
 }
 
 function fmtNis(v: number | null | undefined): string {
@@ -588,10 +588,12 @@ export default function PortfolioTab({
                     </th>
                   )}
                   <th
-                    className="px-4 py-3 text-right font-medium cursor-pointer hover:text-white transition-colors"
+                    className="px-4 py-3 text-right font-medium cursor-pointer hover:text-white transition-colors whitespace-nowrap"
                     onClick={() => onSortClick('total_nis')}
                   >
-                    Total ({profile?.display_currency ?? 'NIS'}) {sortState.column === 'total_nis' && (sortState.direction === 'asc' ? '▲' : '▼')}
+                    <span className="hidden sm:inline">Total ({profile?.display_currency ?? 'NIS'})</span>
+                    <span className="sm:hidden">Total</span>
+                    {sortState.column === 'total_nis' && (sortState.direction === 'asc' ? '▲' : '▼')}
                   </th>
                   <th
                     className="px-4 py-3 text-right font-medium cursor-pointer hover:text-white transition-colors"
@@ -719,7 +721,7 @@ export default function PortfolioTab({
                       )}
 
                       {/* Total NIS */}
-                      <td className="px-4 py-3 text-right tabular-nums">
+                      <td className="px-4 py-3 text-right tabular-nums whitespace-nowrap">
                         {waiting ? (
                           <Pulse />
                         ) : total != null ? (

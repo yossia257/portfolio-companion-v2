@@ -272,43 +272,41 @@ export default function WatchlistTab({ prices, pricesLoading, onRefreshPrices }:
         </div>
 
         {/* Add Ticker Form */}
-        <div className="mb-8 bg-gray-900 border border-gray-800 rounded-xl p-6">
+        <div className="mb-8 bg-gray-900 border border-gray-800 rounded-xl p-4 sm:p-6">
           <h2 className="text-lg font-semibold mb-4">Add Ticker</h2>
-          <div className="space-y-4">
-            <div className="flex gap-4">
+          <div className="flex flex-col gap-3 sm:flex-row sm:gap-4 sm:items-end">
+            <input
+              type="text"
+              value={formTicker}
+              onChange={(e) => setFormTicker(e.target.value.toUpperCase())}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') handleAddTicker()
+              }}
+              placeholder="Ticker"
+              maxLength={12}
+              className="w-full sm:w-32 px-3 py-2 rounded bg-gray-800 border border-gray-700 text-white text-sm focus:outline-none focus:border-blue-500"
+            />
+            <div className="w-full sm:flex-1">
               <input
                 type="text"
-                value={formTicker}
-                onChange={(e) => setFormTicker(e.target.value.toUpperCase())}
+                value={formNote}
+                onChange={(e) => setFormNote(e.target.value.slice(0, 280))}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') handleAddTicker()
                 }}
-                placeholder="TICKER"
-                maxLength={12}
-                className="flex-1 px-3 py-2 rounded bg-gray-800 border border-gray-700 text-white text-sm focus:outline-none focus:border-blue-500"
+                placeholder="Why watching? (optional)"
+                maxLength={280}
+                className="w-full px-3 py-2 rounded bg-gray-800 border border-gray-700 text-white text-sm focus:outline-none focus:border-blue-500"
               />
-              <div className="flex-1">
-                <input
-                  type="text"
-                  value={formNote}
-                  onChange={(e) => setFormNote(e.target.value.slice(0, 280))}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') handleAddTicker()
-                  }}
-                  placeholder="Why are you watching this?"
-                  maxLength={280}
-                  className="w-full px-3 py-2 rounded bg-gray-800 border border-gray-700 text-white text-sm focus:outline-none focus:border-blue-500"
-                />
-                <p className="text-xs text-gray-600 mt-1">{formNote.length}/280 characters</p>
-              </div>
-              <button
-                onClick={handleAddTicker}
-                disabled={!formTicker.trim()}
-                className="px-6 py-2 rounded-lg bg-blue-600 text-white font-semibold hover:bg-blue-500 transition-colors disabled:opacity-50"
-              >
-                Add
-              </button>
+              <p className="text-xs text-gray-600 mt-1">{formNote.length}/280</p>
             </div>
+            <button
+              onClick={handleAddTicker}
+              disabled={!formTicker.trim()}
+              className="w-full sm:w-auto px-6 py-2 rounded-lg bg-blue-600 text-white font-semibold hover:bg-blue-500 transition-colors disabled:opacity-50"
+            >
+              Add
+            </button>
           </div>
         </div>
 
