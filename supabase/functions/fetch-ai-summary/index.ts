@@ -72,10 +72,31 @@ Deno.serve(async (req) => {
       ? (body as any).ticker.trim().toUpperCase()
       : null
 
-    const language: string = typeof (body as any)?.language === 'string' ? (body as any).language : 'en'
-
     if (!ticker) return json({ error: 'ticker is required' }, 400)
     if (!ANTHROPIC_KEY) return json({ error: 'ANTHROPIC_API_KEY not set' }, 500)
+
+    // ── Resolve user's preferred language from profile ──────────────────────
+    let language = 'en'
+    try {
+      const jwt = req.headers.get('Authorization')?.replace(/^Bearer\s+/i, '').trim() ?? ''
+      if (jwt) {
+        const { data: { user }, error: userErr } = await supabase.auth.getUser(jwt)
+        if (userErr) {
+          console.error('[fetch-ai-summary] getUser error:', userErr.message)
+        } else if (user) {
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('ai_response_language')
+            .eq('id', user.id)
+            .single()
+          language = profile?.ai_response_language ?? 'en'
+        }
+      }
+    } catch (e) {
+      console.error('[fetch-ai-summary] language resolution failed:', e)
+    }
+    log(`LANGUAGE_RESOLVED (${language})`)
+    console.error(`[fetch-ai-summary] processing: ${ticker}  language=${language}`)
 
     log(`FETCHING_CACHED_RESEARCH`)
 
