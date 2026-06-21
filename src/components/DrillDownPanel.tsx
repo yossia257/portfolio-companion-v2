@@ -117,7 +117,7 @@ export default function DrillDownPanel({ holding, watchlistTicker, priceEntry, o
   const [language, setLanguage] = useState<string>('en')
   const [error, setError] = useState<string | null>(null)
   const panelRef = useRef<HTMLDivElement>(null)
-  const { get: getCached, set: setCached } = useResearchCache()
+  const { fetch: fetchResearch } = useResearchCache()
 
   // Flags state with safe defaults
   const [flags, setFlags] = useState(() => ({
@@ -149,22 +149,14 @@ export default function DrillDownPanel({ holding, watchlistTicker, priceEntry, o
     }
   }, [])
 
-  // Fetch research on open — check frontend cache first
+  // Fetch research on open — cache & deduplication handled by loadResearch
   useEffect(() => {
     const ticker = holding?.ticker ?? watchlistTicker
     if (!ticker) return
 
-    const cached = getCached(ticker)
-    if (cached) {
-      console.log(`[DrillDownPanel] Frontend cache hit for ${ticker}`)
-      setResearch(cached)
-      setError(null)
-      return
-    }
-
-    console.log(`[DrillDownPanel] Frontend cache miss for ${ticker}; fetching...`)
+    console.log(`[DrillDownPanel] Loading research for ${ticker}`)
     loadResearch(false)
-  }, [holding?.ticker, watchlistTicker, getCached])
+  }, [holding?.ticker, watchlistTicker])
 
   // Fetch flags on open
   useEffect(() => {
@@ -199,17 +191,25 @@ export default function DrillDownPanel({ holding, watchlistTicker, priceEntry, o
     if (!ticker) return
     setError(null)
     try {
-      const { data, error } = await supabase.functions.invoke('fetch-research', {
-        body: { ticker, ...(force ? { force: true } : {}) },
-      })
-      if (error) throw new Error(error.message)
-      const researchData = data?.research ?? null
-      setResearch(researchData)
-      setLanguage(data?.language ?? 'en')
-      // Store in frontend cache for next time
-      if (researchData) {
-        setCached(ticker, researchData)
+      let researchData = null
+      let language = 'en'
+
+      if (force) {
+        // Force refresh: bypass cache and fetch directly with force flag
+        const { data, error } = await supabase.functions.invoke('fetch-research', {
+          body: { ticker, force: true },
+        })
+        if (error) throw new Error(error.message)
+        researchData = data?.research ?? null
+        language = data?.language ?? 'en'
+      } else {
+        // Normal load: use cache with deduplication
+        // If multiple panels open the same ticker simultaneously, they share one fetch
+        researchData = await fetchResearch(ticker)
       }
+
+      setResearch(researchData)
+      setLanguage(language)
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to load research data.')
     }

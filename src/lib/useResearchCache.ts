@@ -1,4 +1,5 @@
 import { useCallback, useRef } from 'react'
+import { supabase } from './supabase'
 import type { ResearchCacheRow } from './signals'
 
 // Frontend session cache: in-memory store for research data fetched during this browser session
@@ -15,8 +16,14 @@ const TTL_MS = 5 * 60 * 1000 // 5 minutes
 // Module-level map persists across component mounts within same session
 const sessionCache = new Map<string, CacheEntry>()
 
+// Module-level in-flight request deduplication:
+// If two components request the same ticker simultaneously, they share a single promise.
+// Eliminates duplicate network calls when opening the same ticker twice in quick succession.
+const inflightRequests = new Map<string, Promise<ResearchCacheRow | null>>()
+
 export function useResearchCache() {
   const cacheRef = useRef(sessionCache)
+  const inflightRef = useRef(inflightRequests)
 
   const get = useCallback((ticker: string): ResearchCacheRow | null => {
     const entry = cacheRef.current.get(ticker)
@@ -42,12 +49,49 @@ export function useResearchCache() {
   const clear = useCallback((ticker?: string) => {
     if (ticker) {
       cacheRef.current.delete(ticker)
+      inflightRef.current.delete(ticker)
     } else {
       cacheRef.current.clear()
+      inflightRef.current.clear()
     }
   }, [])
 
-  return { get, set, clear }
+  // Fetch research with request deduplication:
+  // If the same ticker is requested twice simultaneously, both calls share a single promise
+  const fetch = useCallback(async (ticker: string): Promise<ResearchCacheRow | null> => {
+    // Check in-memory session cache first
+    const cached = get(ticker)
+    if (cached) return cached
+
+    // Check if request is already in-flight
+    if (inflightRef.current.has(ticker)) {
+      return inflightRef.current.get(ticker)!
+    }
+
+    // Start new request
+    const promise = supabase.functions.invoke('fetch-research', {
+      body: { ticker },
+    })
+      .then(({ data, error }) => {
+        if (error) {
+          console.error(`[useResearchCache] fetch error for ${ticker}:`, error)
+          throw error
+        }
+        const researchData = data?.research
+        if (researchData) {
+          set(ticker, researchData)
+        }
+        return researchData || null
+      })
+      .finally(() => {
+        inflightRef.current.delete(ticker)
+      })
+
+    inflightRef.current.set(ticker, promise)
+    return promise
+  }, [get, set])
+
+  return { get, set, clear, fetch }
 }
 
 // Why a frontend in-memory cache *complements* (not replaces) server-side cache:

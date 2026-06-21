@@ -413,7 +413,7 @@ Deno.serve(async (req) => {
           `Current data:\n${context}`
 
         log(`AI_SUMMARY_CALL (${language})`)
-        console.error(`[fetch-research] calling Anthropic for ${ticker} in ${language}`)
+        console.error(`[fetch-research] calling Anthropic Haiku for ${ticker} in ${language}`)
         const anthropicRes = await fetch('https://api.anthropic.com/v1/messages', {
           method: 'POST',
           headers: {
@@ -422,8 +422,8 @@ Deno.serve(async (req) => {
             'Content-Type':      'application/json',
           },
           body: JSON.stringify({
-            model:      'claude-sonnet-4-6',
-            max_tokens: 700,
+            model:      'claude-haiku-4-5',
+            max_tokens: 800,
             messages:   [{ role: 'user', content: prompt }],
           }),
         })
