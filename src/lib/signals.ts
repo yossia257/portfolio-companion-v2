@@ -63,6 +63,7 @@ export type ResearchCacheRow = {
   rsi_14: number | null
   ai_summary: string | null
   ai_summary_at: string | null
+  ai_summaries?: Record<string, { text: string; at: string }>
   fetched_at: string
 }
 

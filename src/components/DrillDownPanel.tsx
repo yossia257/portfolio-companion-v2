@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { useResearchCache } from '../lib/useResearchCache'
+import { useAiSummaryCache } from '../lib/useAiSummaryCache'
 import type { PriceEntry, ErrorEntry } from '../lib/prices'
 import type { ResearchCacheRow } from '../lib/signals'
 
@@ -116,8 +117,12 @@ export default function DrillDownPanel({ holding, watchlistTicker, priceEntry, o
   const [research, setResearch] = useState<ResearchCacheRow | null>(null)
   const [language, setLanguage] = useState<string>('en')
   const [error, setError] = useState<string | null>(null)
+  const [aiSummary, setAiSummary] = useState<string | null>(null)
+  const [aiSummaryAt, setAiSummaryAt] = useState<string | null>(null)
+  const [aiSummaryLoading, setAiSummaryLoading] = useState(false)
   const panelRef = useRef<HTMLDivElement>(null)
   const { fetch: fetchResearch } = useResearchCache()
+  const { fetch: fetchAiSummary } = useAiSummaryCache()
 
   // Flags state with safe defaults
   const [flags, setFlags] = useState(() => ({
@@ -157,6 +162,47 @@ export default function DrillDownPanel({ holding, watchlistTicker, priceEntry, o
     console.log(`[DrillDownPanel] Loading research for ${ticker}`)
     loadResearch(false)
   }, [holding?.ticker, watchlistTicker])
+
+  // Fetch AI summary after research loads
+  // If a fresh cached summary exists for the language, use it; otherwise, fetch in background
+  useEffect(() => {
+    if (!research) return
+    const ticker = holding?.ticker ?? watchlistTicker
+    if (!ticker) return
+
+    // Capture values in outer scope before async function
+    const researchData = research
+    const tickerValue = ticker
+    const languageValue = language
+
+    async function loadAiSummary() {
+      // Check if research includes a fresh cached summary for this language
+      const cachedEntry = researchData.ai_summaries?.[languageValue]
+      if (cachedEntry?.text) {
+        console.log(`[DrillDownPanel] AI summary cached for ${languageValue}`)
+        setAiSummary(cachedEntry.text)
+        setAiSummaryAt(cachedEntry.at)
+        return
+      }
+
+      // No fresh cache; fetch in background
+      console.log(`[DrillDownPanel] Fetching AI summary for ${tickerValue} (${languageValue})`)
+      setAiSummaryLoading(true)
+      try {
+        const entry = await fetchAiSummary(tickerValue, languageValue)
+        if (entry?.summary) {
+          setAiSummary(entry.summary)
+          setAiSummaryAt(entry.summary_at)
+        }
+      } catch (e) {
+        console.error('[DrillDownPanel] AI summary fetch failed:', e)
+      } finally {
+        setAiSummaryLoading(false)
+      }
+    }
+
+    loadAiSummary()
+  }, [research, language, fetchAiSummary, holding?.ticker, watchlistTicker])
 
   // Fetch flags on open
   useEffect(() => {
@@ -597,16 +643,18 @@ export default function DrillDownPanel({ holding, watchlistTicker, priceEntry, o
             </div>
           </section>
 
-          {/* ── AI Summary ── (slowest; skeleton while loading) */}
+          {/* ── AI Summary ── (now non-blocking; fetches after research loads) */}
           <section className="px-5 py-4 border-b border-gray-800">
             <h3 className="text-xs uppercase tracking-wider text-gray-500 mb-3">AI Summary</h3>
-            {!research || !research.ai_summary ? (
-              <SectionSkeleton />
-            ) : (
+            {aiSummaryLoading ? (
+              <div className="text-sm text-gray-400 italic">
+                ✨ Generating summary…
+              </div>
+            ) : aiSummary ? (
               <div>
-                <p className="text-sm text-gray-300 leading-relaxed mb-3">{research.ai_summary}</p>
-                {research.ai_summary_at && (
-                  <p className="text-xs text-gray-600">Generated {fmtDateTime(research.ai_summary_at)}</p>
+                <p className="text-sm text-gray-300 leading-relaxed mb-3">{aiSummary}</p>
+                {aiSummaryAt && (
+                  <p className="text-xs text-gray-600 mb-3">Generated {fmtDateTime(aiSummaryAt)}</p>
                 )}
                 <div className="mt-3 flex items-center gap-2 flex-wrap">
                   <span className="text-xs text-gray-600">Language:</span>
@@ -622,13 +670,37 @@ export default function DrillDownPanel({ holding, watchlistTicker, priceEntry, o
                     ))}
                   </select>
                   <button
-                    onClick={() => loadResearch(true)}
+                    onClick={() => {
+                      const ticker = holding?.ticker ?? watchlistTicker
+                      if (!ticker) return
+                      setAiSummary(null)
+                      setAiSummaryAt(null)
+                      setAiSummaryLoading(true)
+                      // Fetch fresh summary by calling endpoint directly
+                      supabase.functions
+                        .invoke('fetch-ai-summary', {
+                          body: { ticker, language },
+                        })
+                        .then(({ data, error }) => {
+                          if (error) {
+                            console.error('[DrillDownPanel] Refresh failed:', error)
+                          } else {
+                            setAiSummary(data?.summary ?? null)
+                            setAiSummaryAt(data?.summary_at ?? null)
+                          }
+                        })
+                        .finally(() => {
+                          setAiSummaryLoading(false)
+                        })
+                    }}
                     className="text-xs text-gray-500 hover:text-white transition-colors ml-auto"
                   >
                     Refresh summary ↻
                   </button>
                 </div>
               </div>
+            ) : (
+              <p className="text-sm text-gray-600">AI summary not available</p>
             )}
           </section>
 

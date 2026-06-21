@@ -367,97 +367,10 @@ Deno.serve(async (req) => {
     const target_price_high: null = null
     const target_price_low:  null = null
 
-    // ── AI summary (per-language) ────────────────────────────────────────────
-    // Start with whatever summaries already exist in the cache; we'll add or
-    // overwrite the entry for the requested language, leaving other languages intact.
+    // ── AI summary: No longer generated here; delegated to fetch-ai-summary endpoint
+    // Preserve existing cached summaries (all languages) to include in response
     const existingAiSummaries = (cached?.ai_summaries as Record<string, any>) ?? {}
-    let updatedAiSummaries    = { ...existingAiSummaries }
-    let ai_summary_text:  string | null = existingAiSummaries[language]?.text ?? null
-    let ai_summary_at:    string | null = existingAiSummaries[language]?.at   ?? null
-
-    if (!hasFreshAISummary && ANTHROPIC_KEY) {
-      log(`AI_SUMMARY_GENERATING`)
-      try {
-        const newsLines = (news as any[])
-          .slice(0, 3)
-          .map((n: any) => `  - ${n.headline}`)
-          .join('\n') || '  (none available)'
-
-        const context = [
-          `Ticker: ${ticker}${companyName !== ticker ? ` (${companyName})` : ''}`,
-          week52_high != null && week52_low != null
-            ? `52-week range: ${week52_low} – ${week52_high}` : null,
-          pe_ratio != null ? `PE (TTM): ${pe_ratio.toFixed(1)}` : null,
-          eps      != null ? `EPS (TTM): ${eps.toFixed(2)}`     : null,
-          beta     != null ? `Beta: ${beta.toFixed(2)}`         : null,
-          analyst_buy != null
-            ? `Analyst ratings: ${analyst_buy} Buy / ${analyst_hold} Hold / ${analyst_sell} Sell` : null,
-          ma_20 != null || ma_50 != null
-            ? `Moving averages: ${[
-                ma_20 != null ? `MA20 ${ma_20.toFixed(2)}` : null,
-                ma_50 != null ? `MA50 ${ma_50.toFixed(2)}` : null,
-              ].filter(Boolean).join(', ')}` : null,
-          rsi_14 != null ? `RSI(14): ${rsi_14.toFixed(1)}` : null,
-          `Recent headlines:\n${newsLines}`,
-        ].filter(Boolean).join('\n')
-
-        const langInstruction = LANG_INSTRUCTIONS[language] ?? LANG_INSTRUCTIONS.en
-
-        const prompt =
-          `You are summarizing the investment picture for ${ticker} for a sophisticated individual investor.\n\n` +
-          `Write 4–6 sentences. No bullet points. No explicit buy/sell verdict. ` +
-          `Synthesize: where the story stands now, what analysts and the chart agree or disagree on, ` +
-          `and what is the single most important thing a current holder should watch.\n\n` +
-          `IMPORTANT: End your response at a complete sentence with proper punctuation. Do not leave any sentence unfinished. ` +
-          `If you're approaching the token limit, wrap up your current thought cleanly rather than starting a new one.\n\n` +
-          `${langInstruction}\n\n` +
-          `Current data:\n${context}`
-
-        log(`AI_SUMMARY_CALL (${language})`)
-        console.error(`[fetch-research] calling Anthropic Haiku for ${ticker} in ${language}`)
-        const anthropicRes = await fetch('https://api.anthropic.com/v1/messages', {
-          method: 'POST',
-          headers: {
-            'x-api-key':         ANTHROPIC_KEY,
-            'anthropic-version': '2023-06-01',
-            'Content-Type':      'application/json',
-          },
-          body: JSON.stringify({
-            model:      'claude-haiku-4-5',
-            max_tokens: 800,
-            messages:   [{ role: 'user', content: prompt }],
-          }),
-        })
-
-        console.error(`[fetch-research] Anthropic HTTP ${anthropicRes.status}`)
-        if (anthropicRes.ok) {
-          const anthropicData = await anthropicRes.json()
-          let text = anthropicData.content?.[0]?.text ?? null
-          if (text) {
-            // Safety net: trim to last complete sentence if truncated mid-sentence
-            text = trimToLastSentence(text)
-            ai_summary_text = text
-            ai_summary_at   = new Date().toISOString()
-            // Merge into the per-language map; other languages are untouched.
-            updatedAiSummaries = {
-              ...updatedAiSummaries,
-              [language]: { text, at: ai_summary_at },
-            }
-            console.error(`[fetch-research] AI summary (${language}): ${text.slice(0, 80)}…`)
-          }
-        } else {
-          const errBody = await anthropicRes.text()
-          console.error(`[fetch-research] Anthropic error: ${errBody.slice(0, 300)}`)
-        }
-        log(`AI_SUMMARY_DONE`)
-      } catch (e) {
-        console.error('[fetch-research] Anthropic fetch threw:', e)
-        log(`AI_SUMMARY_ERROR`)
-      }
-    } else {
-      log(`AI_SUMMARY_CACHED (${hasFreshAISummary ? 'fresh' : 'no_key'})`)
-      console.error('[fetch-research] ANTHROPIC_API_KEY not set — skipping AI summary')
-    }
+    log(`AI_SUMMARY_SKIPPED_DELEGATED_TO_FETCH_AI_SUMMARY`)
 
     // ── Build row and upsert ────────────────────────────────────────────────
     // ONLY write columns that exist in ticker_research_cache:
@@ -480,7 +393,7 @@ Deno.serve(async (req) => {
       ma_20,
       ma_50,
       rsi_14,
-      ai_summaries: updatedAiSummaries,  // JSONB, NOT ai_summary or ai_summary_at
+      ai_summaries: existingAiSummaries,  // Preserve existing summaries; AI summary delegated to fetch-ai-summary
       fetched_at: new Date().toISOString(),
     }
 
