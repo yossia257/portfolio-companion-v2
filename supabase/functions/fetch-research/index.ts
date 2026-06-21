@@ -160,6 +160,7 @@ Deno.serve(async (req) => {
       ? (Date.now() - new Date(langEntry.at).getTime()) / 1000 / 60 / 60
       : 999
     const hasFreshAISummary = langEntry?.text && summaryAge < 24
+    log(`AI_SUMMARY_FRESHNESS (${language}: age=${summaryAge.toFixed(1)}h fresh=${hasFreshAISummary})`)
 
     log(`FRESHNESS_CHECK (news=${hasFreshNews} analyst=${hasFreshAnalyst} technicals=${hasFreshTechnicals} summary=${hasFreshAISummary} cacheAge=${cacheAge.toFixed(1)}h)`)
 
@@ -459,6 +460,9 @@ Deno.serve(async (req) => {
     }
 
     // ── Build row and upsert ────────────────────────────────────────────────
+    // ONLY write columns that exist in ticker_research_cache:
+    // - NO ai_summary (singular) or ai_summary_at — use ai_summaries (JSONB) instead
+    // - NO target_price_* — FMP endpoint was deprecated, columns don't exist
     const row = {
       ticker,
       description,
@@ -473,24 +477,26 @@ Deno.serve(async (req) => {
       eps,
       week52_high,
       week52_low,
-      target_price_mean,
-      target_price_high,
-      target_price_low,
       ma_20,
       ma_50,
       rsi_14,
-      ai_summaries:  updatedAiSummaries,
-      // Legacy columns kept for schema compat; surfaced from ai_summaries below
-      ai_summary:    ai_summary_text,
-      ai_summary_at: ai_summary_at,
-      fetched_at:    new Date().toISOString(),
+      ai_summaries: updatedAiSummaries,  // JSONB, NOT ai_summary or ai_summary_at
+      fetched_at: new Date().toISOString(),
     }
 
     log(`CACHE_UPDATE_START`)
-    const { error: upsertErr } = await supabase
+    const { data: upsertResult, error: upsertErr } = await supabase
       .from('ticker_research_cache')
       .upsert(row, { onConflict: 'ticker' })
-    if (upsertErr) console.error('[fetch-research] upsert error:', upsertErr.message)
+      .select()
+
+    if (upsertErr) {
+      console.error('[fetch-research] UPSERT_FAILED:', upsertErr)
+      log(`UPSERT_FAILED (${upsertErr.message})`)
+    } else {
+      console.error('[fetch-research] UPSERT_OK ticker=' + ticker)
+      log(`UPSERT_OK`)
+    }
     log(`CACHE_UPDATE_DONE`)
 
     log(`RETURNING`)
