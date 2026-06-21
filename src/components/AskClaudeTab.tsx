@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
+import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 import { supabase } from '../lib/supabase'
 import { getDirection, getTextAlign } from '../lib/rtl'
 import { useUserProfile } from '../lib/useUserProfile'
@@ -178,52 +180,65 @@ export default function AskClaudeTab() {
       </div>
 
       {/* Messages area */}
-      <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
-        {messages.length === 0 && (
-          <div className="h-full flex items-center justify-center text-center">
-            <div>
-              <p className="text-gray-400 text-sm">No messages yet.</p>
-              <p className="text-gray-500 text-xs mt-2">Ask Claude about your portfolio.</p>
+      <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4 flex flex-col items-center w-full">
+        <div className="w-full md:max-w-3xl">
+          {messages.length === 0 && (
+            <div className="h-full flex items-center justify-center text-center">
+              <div>
+                <p className="text-gray-400 text-sm">No messages yet.</p>
+                <p className="text-gray-500 text-xs mt-2">Ask Claude about your portfolio.</p>
+              </div>
             </div>
-          </div>
-        )}
+          )}
 
-        {messages.map((msg, i) => (
-          <div
-            key={i}
-            className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
-          >
+          {messages.map((msg, i) => (
             <div
-              className={`max-w-xs lg:max-w-md px-4 py-2 rounded-lg ${
-                msg.role === 'user'
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-gray-800 text-gray-200'
-              }`}
+              key={i}
+              className={`flex w-full mb-4 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
             >
-              <p
+              <div
                 dir={getDirection(msg.role === 'user' ? 'en' : userLanguage)}
-                className={`text-sm leading-relaxed whitespace-pre-wrap break-words text-${getTextAlign(msg.role === 'user' ? 'en' : userLanguage)}`}
+                className={`px-4 py-2 rounded-lg ${
+                  msg.role === 'user'
+                    ? `bg-blue-600 text-white max-w-[80%] text-${getTextAlign('en')}`
+                    : `bg-gray-800 text-gray-200 max-w-[90%] text-${getTextAlign(userLanguage)}`
+                }`}
               >
-                {msg.content}
+                {msg.role === 'assistant' ? (
+                  <div className="prose prose-invert prose-sm max-w-none text-gray-200
+                    prose-p:text-sm prose-p:my-1
+                    prose-a:text-blue-400 prose-a:underline
+                    prose-li:text-sm prose-li:my-0.5
+                    prose-code:text-xs prose-code:bg-gray-700 prose-code:px-1 prose-code:py-0.5 prose-code:rounded
+                    prose-pre:bg-gray-700 prose-pre:p-2 prose-pre:text-xs">
+                    <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                      {msg.content}
+                    </ReactMarkdown>
+                  </div>
+                ) : (
+                  <p className="text-sm leading-relaxed whitespace-pre-wrap break-words">
+                    {msg.content}
+                  </p>
+                )}
                 {msg.role === 'assistant' && isStreaming && i === messages.length - 1 && (
                   <span className="inline-block ml-1 w-2 h-4 bg-gray-400 animate-pulse" />
                 )}
-              </p>
+              </div>
+
+              {/* Stop button for current streaming message */}
+              {msg.role === 'assistant' && isStreaming && i === messages.length - 1 && (
+                <button
+                  onClick={stopStreaming}
+                  className="ml-2 px-2 py-1 text-xs text-gray-500 hover:text-gray-300 bg-gray-800 hover:bg-gray-700 rounded transition-colors self-end"
+                >
+                  Stop
+                </button>
+              )}
             </div>
+          ))}
 
-            {/* Stop button for current streaming message */}
-            {msg.role === 'assistant' && isStreaming && i === messages.length - 1 && (
-              <button
-                onClick={stopStreaming}
-                className="ml-2 px-2 py-1 text-xs text-gray-500 hover:text-gray-300 bg-gray-800 hover:bg-gray-700 rounded transition-colors self-end"
-              >
-                Stop
-              </button>
-            )}
-          </div>
-        ))}
-
-        <div ref={messagesEndRef} />
+          <div ref={messagesEndRef} />
+        </div>
       </div>
 
       {/* Error message */}

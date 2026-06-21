@@ -170,6 +170,7 @@ async function getPortfolioContext(supabase: any, userId: string) {
     holdings: [],
     watchlist: [],
     rsuVests: [],
+    researchCache: {},
     fxRate: null,
   }
 
@@ -191,6 +192,21 @@ async function getPortfolioContext(supabase: any, userId: string) {
         .is('deleted_at', null)
 
       context.holdings = holdingsData || []
+
+      // Fetch cached research for all held tickers
+      const tickers = (holdingsData || []).map((h: any) => h.ticker)
+      if (tickers.length > 0) {
+        const { data: researchRows } = await supabase
+          .from('ticker_research_cache')
+          .select('ticker, news, analyst_buy, analyst_hold, analyst_sell, pe_ratio, beta, ma_20, ma_50, rsi_14')
+          .in('ticker', tickers)
+
+        if (researchRows) {
+          researchRows.forEach((row: any) => {
+            context.researchCache[row.ticker] = row
+          })
+        }
+      }
     }
 
     // Get watchlist
@@ -260,6 +276,44 @@ function buildSystemPrompt(profile: any, portfolio: any): string {
     rsusStr = '(None in next 12 months)'
   }
 
+  // Build per-holding research context (if cached)
+  let researchContextStr = ''
+  if (Object.keys(portfolio.researchCache).length > 0) {
+    researchContextStr = 'PER-HOLDING CONTEXT (cached recently):\n\n'
+    for (const ticker in portfolio.researchCache) {
+      const research = portfolio.researchCache[ticker]
+      researchContextStr += `${ticker}:\n`
+
+      // Recent news headlines (up to 3)
+      if (research.news && Array.isArray(research.news) && research.news.length > 0) {
+        researchContextStr += '- Recent news headlines (last 14 days):\n'
+        research.news.slice(0, 3).forEach((item: any) => {
+          const date = item.datetime ? new Date(item.datetime * 1000).toLocaleDateString() : 'N/A'
+          researchContextStr += `  • ${item.headline} (${item.source || 'unknown'}, ${date})\n`
+        })
+      }
+
+      // Analyst consensus
+      if (research.analyst_buy != null || research.analyst_hold != null || research.analyst_sell != null) {
+        const buy = research.analyst_buy || 0
+        const hold = research.analyst_hold || 0
+        const sell = research.analyst_sell || 0
+        researchContextStr += `- Analyst consensus: ${buy} buy / ${hold} hold / ${sell} sell\n`
+      }
+
+      // Technical indicators
+      const technicalParts = []
+      if (research.ma_20 != null) technicalParts.push(`MA20=$${research.ma_20.toFixed(2)}`)
+      if (research.ma_50 != null) technicalParts.push(`MA50=$${research.ma_50.toFixed(2)}`)
+      if (research.rsi_14 != null) technicalParts.push(`RSI=${research.rsi_14.toFixed(0)}`)
+      if (technicalParts.length > 0) {
+        researchContextStr += `- Technical: ${technicalParts.join(', ')}\n`
+      }
+
+      researchContextStr += '\n'
+    }
+  }
+
   return `You are an AI assistant helping ${profile.display_name || 'the user'} make sense of their personal investment portfolio.
 
 USER PROFILE:
@@ -284,6 +338,8 @@ UPCOMING RSU VESTS (next 12 months):
 
 ${rsusStr}
 
+${researchContextStr}
+
 NON-NEGOTIABLE RULES:
 
 1. You give context, education, and analysis — NEVER personalized buy/sell recommendations.
@@ -291,7 +347,8 @@ NON-NEGOTIABLE RULES:
 3. Honor tax_jurisdiction when discussing transaction costs — for ${profile.tax_jurisdiction || 'their jurisdiction'} users, mention capital gains tax explicitly when relevant (${taxRate}).
 4. Respond in ${profile.ai_response_language || 'English'}.
 5. Be concise. ${profile.display_name || 'The user'} is sophisticated.
-6. If asked about something outside your knowledge (e.g., today's specific news), say so rather than guessing.`
+6. If asked about something outside your knowledge (e.g., today's specific news), say so rather than guessing.
+7. When the user asks about specific events, trials, earnings, or news for a ticker they hold, use the "PER-HOLDING CONTEXT" section above (sourced from cached news, analyst, and technical data — usually less than 24 hours old). If the context doesn't cover the question, say so honestly rather than guessing from your training data.`
 }
 
 // Stream response back to client as Server-Sent Events
