@@ -8,6 +8,7 @@ import PortfolioTab from '../components/PortfolioTab'
 import RsuTab from '../components/RsuTab'
 import SignalsTab from '../components/SignalsTab'
 import WatchlistTab from '../components/WatchlistTab'
+import AskClaudeTab from '../components/AskClaudeTab'
 import SettingsTab from '../components/SettingsTab'
 
 // ── Types ──────────────────────────────────────────────────────────────────
@@ -116,7 +117,7 @@ export default function MainPage({
   const [research, setResearch] = useState<Record<string, any>>({})
 
   const [sortState, setSortState] = useState(() => readSortState())
-  const [activeTab, setActiveTab] = useState<'portfolio' | 'rsu' | 'signals' | 'watchlist' | 'settings'>('portfolio')
+  const [activeTab, setActiveTab] = useState<'portfolio' | 'rsu' | 'signals' | 'watchlist' | 'ask-claude' | 'settings'>('portfolio')
 
   const REFRESH_MS = 60 * 60 * 1000 // 60 minutes
 
@@ -454,6 +455,8 @@ export default function MainPage({
             onRefreshPrices={handleRefreshPricesForWatchlist}
           />
         )}
+
+        {!loading && holdings !== null && activeTab === 'ask-claude' && <AskClaudeTab />}
 
         {!loading && holdings !== null && activeTab === 'settings' && <SettingsTab onHoldingUpdated={refetchHoldings} />}
       </main>

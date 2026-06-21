@@ -1,4 +1,4 @@
-type TabKey = 'portfolio' | 'rsu' | 'signals' | 'watchlist' | 'settings'
+type TabKey = 'portfolio' | 'rsu' | 'signals' | 'watchlist' | 'ask-claude' | 'settings'
 
 interface Tab {
   key: TabKey
@@ -11,6 +11,7 @@ const TABS: Tab[] = [
   { key: 'rsu', label: 'RSU', icon: '📋' },
   { key: 'signals', label: 'Signals', icon: '⚡' },
   { key: 'watchlist', label: 'Watchlist', icon: '👀' },
+  { key: 'ask-claude', label: 'Ask Claude', icon: '💬' },
   { key: 'settings', label: 'Settings', icon: '⚙️' },
 ]
 
