@@ -195,7 +195,7 @@ SECTOR BREAKDOWN: ${sectorBreakdown || 'None'}
 
 CURRENT WATCHLIST: ${watchlistTickers.length > 0 ? watchlistTickers.join(', ') : '(None)'}
 
-Please suggest exactly 5 investment ideas that would complement or diversify this portfolio, given the investment profile above. If you genuinely can't find 5 distinct, high-quality ideas for this user, fall back to 4 — but never fewer than 4.
+TASK: Generate EXACTLY 5 investment ideas that would complement or diversify this portfolio, given the investment profile above. You MUST return exactly 5 ideas. Do not return fewer than 5.
 `
 
     // Build system prompt
@@ -212,9 +212,10 @@ STRICT RULES:
 5. Honor their portfolio style: focused → 1-2 high-conviction ideas. Diversified → suggest spread.
 6. For each idea, include: ticker, name, asset class, 2-3 sentence rationale grounded in their portfolio, key risk, and suggested sizing range.
 7. If they are tax-aware (tax_sensitivity = tax_aware): when suggesting position changes (sell X to buy Y), explicitly compute the tax cost at their jurisdiction's capital gains rate.
-8. Respond ONLY with valid JSON array (no preamble, no markdown), in ${profile.ai_response_language || 'English'}. End with disclaimer.
+8. YOU MUST RETURN EXACTLY 5 IDEAS. Never fewer than 5. Your response MUST be a JSON array with exactly 5 objects.
+9. Respond ONLY with valid JSON array (no preamble, no markdown, no explanations), in ${profile.ai_response_language || 'English'}.
 
-RESPONSE FORMAT (valid JSON):
+RESPONSE FORMAT (valid JSON — EXACTLY 5 ITEMS):
 [
   {
     "ticker": "SYMBOL",
@@ -224,10 +225,11 @@ RESPONSE FORMAT (valid JSON):
     "risk": "Key risk factors",
     "sizing": "X-Y% of portfolio",
     "tax_considerations": "If applicable; optional"
-  }
+  },
+  { ... repeat 4 more times with different ideas ... }
 ]
 
-Append disclaimer: "These are ideas for research, not financial advice."
+After the JSON array, append on a new line: "These are ideas for research, not financial advice."
 `
 
     console.log('[generate-watchlist-ideas] Calling Anthropic Claude API...')
@@ -242,7 +244,7 @@ Append disclaimer: "These are ideas for research, not financial advice."
       },
       body: JSON.stringify({
         model: 'claude-sonnet-4-6',
-        max_tokens: 2000,
+        max_tokens: 2500,
         system: systemPrompt,
         messages: [
           {
