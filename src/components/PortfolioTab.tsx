@@ -216,6 +216,7 @@ export default function PortfolioTab({
 }: PortfolioTabProps) {
   const [selectedHolding, setSelectedHolding] = useState<Holding | null>(null)
   const [deleteConfirm, setDeleteConfirm] = useState<Holding | null>(null)
+  const [deleteNote, setDeleteNote] = useState('')
   const [deleting, setDeleting] = useState(false)
   const [showAddModal, setShowAddModal] = useState(false)
   const [addFormData, setAddFormData] = useState({
@@ -231,23 +232,65 @@ export default function PortfolioTab({
 
   const list = holdings ?? []
 
-  async function handleConfirmDelete(holding: Holding) {
+  async function handleConfirmDelete(holding: Holding, moveToWatchlist: boolean) {
     setDeleting(true)
     try {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) return
+
       const now = new Date().toISOString()
+
+      // Soft-delete the holding
       await supabase
         .from('holdings')
         .update({ deleted_at: now })
         .eq('id', holding.id)
 
-      setDeleteConfirm(null)
+      // If moving to watchlist, check if already exists and insert
+      if (moveToWatchlist) {
+        const { data: existing } = await supabase
+          .from('watchlist_items')
+          .select('id')
+          .eq('user_id', user.id)
+          .eq('ticker', holding.ticker)
+          .maybeSingle()
 
-      // Show toast
-      const toastDiv = document.createElement('div')
-      toastDiv.className = 'fixed bottom-4 right-4 px-4 py-2 rounded-lg bg-amber-600/20 border border-amber-600/50 text-sm text-amber-300 animate-fade-out'
-      toastDiv.textContent = `Deleted ${holding.ticker} (undo in Settings)`
-      document.body.appendChild(toastDiv)
-      setTimeout(() => toastDiv.remove(), 2000)
+        if (existing) {
+          // Already on watchlist
+          const toastDiv = document.createElement('div')
+          toastDiv.className = 'fixed bottom-4 right-4 px-4 py-2 rounded-lg bg-blue-600/20 border border-blue-600/50 text-sm text-blue-300 animate-fade-out'
+          toastDiv.textContent = `${holding.ticker} already on Watchlist — just deleted from portfolio.`
+          document.body.appendChild(toastDiv)
+          setTimeout(() => toastDiv.remove(), 2000)
+        } else {
+          // Add to watchlist
+          const watchlistNote = deleteNote.trim() || `Previously held — sold on ${new Date().toLocaleDateString()}`
+          await supabase
+            .from('watchlist_items')
+            .insert({
+              user_id: user.id,
+              ticker: holding.ticker,
+              note: watchlistNote,
+              added_from_ai: false,
+            })
+
+          const toastDiv = document.createElement('div')
+          toastDiv.className = 'fixed bottom-4 right-4 px-4 py-2 rounded-lg bg-green-600/20 border border-green-600/50 text-sm text-green-300 animate-fade-out'
+          toastDiv.textContent = `Moved ${holding.ticker} to Watchlist`
+          document.body.appendChild(toastDiv)
+          setTimeout(() => toastDiv.remove(), 2000)
+        }
+      } else {
+        // Just delete, show default message
+        const toastDiv = document.createElement('div')
+        toastDiv.className = 'fixed bottom-4 right-4 px-4 py-2 rounded-lg bg-amber-600/20 border border-amber-600/50 text-sm text-amber-300 animate-fade-out'
+        toastDiv.textContent = `Deleted ${holding.ticker} (undo in Settings)`
+        document.body.appendChild(toastDiv)
+        setTimeout(() => toastDiv.remove(), 2000)
+      }
+
+      setDeleteConfirm(null)
+      setDeleteNote('')
 
       // Refetch holdings
       if (onHoldingUpdated) {
@@ -878,23 +921,51 @@ export default function PortfolioTab({
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-gray-900 border border-gray-800 rounded-lg max-w-sm w-full p-6">
             <h2 className="text-lg font-semibold mb-2">Delete {deleteConfirm.ticker} from your portfolio?</h2>
-            <p className="text-sm text-gray-400 mb-6">
-              This can be undone for 30 days from Settings → Archived holdings.
+            <p className="text-sm text-gray-400 mb-4">
+              Keep tracking it post-sale on your Watchlist, or just delete?
             </p>
+
+            {/* Optional note field */}
+            <div className="mb-6">
+              <label className="block text-xs text-gray-500 uppercase tracking-wider mb-2">
+                Optional note ({deleteNote.length}/280)
+              </label>
+              <input
+                type="text"
+                value={deleteNote}
+                onChange={(e) => setDeleteNote(e.target.value.slice(0, 280))}
+                placeholder="Why are you selling?"
+                maxLength={280}
+                disabled={deleting}
+                className="w-full px-3 py-2 rounded bg-gray-800 border border-gray-700 text-white text-sm focus:outline-none focus:border-blue-500 disabled:opacity-50"
+              />
+            </div>
+
+            {/* Action buttons */}
             <div className="flex gap-3 justify-end">
               <button
-                onClick={() => setDeleteConfirm(null)}
+                onClick={() => {
+                  setDeleteConfirm(null)
+                  setDeleteNote('')
+                }}
                 disabled={deleting}
                 className="px-4 py-2 rounded-lg bg-gray-800 text-gray-200 hover:bg-gray-700 transition-colors disabled:opacity-50"
               >
                 Cancel
               </button>
               <button
-                onClick={() => handleConfirmDelete(deleteConfirm)}
+                onClick={() => handleConfirmDelete(deleteConfirm, false)}
                 disabled={deleting}
-                className="px-4 py-2 rounded-lg bg-red-600 text-white hover:bg-red-500 transition-colors disabled:opacity-50"
+                className="px-4 py-2 rounded-lg bg-gray-700 text-gray-200 hover:bg-gray-600 transition-colors disabled:opacity-50"
               >
-                {deleting ? 'Deleting…' : 'Delete'}
+                {deleting ? 'Deleting…' : 'Just delete'}
+              </button>
+              <button
+                onClick={() => handleConfirmDelete(deleteConfirm, true)}
+                disabled={deleting}
+                className="px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-500 transition-colors disabled:opacity-50 font-semibold"
+              >
+                {deleting ? 'Moving…' : 'Delete and move to Watchlist'}
               </button>
             </div>
           </div>
