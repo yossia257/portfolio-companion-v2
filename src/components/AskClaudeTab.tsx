@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { supabase } from '../lib/supabase'
+import { getDirection, getTextAlign } from '../lib/rtl'
+import { useUserProfile } from '../lib/useUserProfile'
 
 interface Message {
   role: 'user' | 'assistant'
@@ -16,6 +18,9 @@ const EXAMPLE_PROMPTS = [
 ]
 
 export default function AskClaudeTab() {
+  const { profile } = useUserProfile()
+  const userLanguage = profile?.ai_response_language ?? 'en'
+
   const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState('')
   const [isStreaming, setIsStreaming] = useState(false)
@@ -184,7 +189,10 @@ export default function AskClaudeTab() {
                   : 'bg-gray-800 text-gray-200'
               }`}
             >
-              <p className="text-sm leading-relaxed whitespace-pre-wrap break-words">
+              <p
+                dir={getDirection(msg.role === 'user' ? 'en' : userLanguage)}
+                className={`text-sm leading-relaxed whitespace-pre-wrap break-words text-${getTextAlign(msg.role === 'user' ? 'en' : userLanguage)}`}
+              >
                 {msg.content}
                 {msg.role === 'assistant' && isStreaming && i === messages.length - 1 && (
                   <span className="inline-block ml-1 w-2 h-4 bg-gray-400 animate-pulse" />

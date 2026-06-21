@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
+import { getDirection, getTextAlign } from '../lib/rtl'
+import { useUserProfile } from '../lib/useUserProfile'
 import type { PriceMap } from '../lib/prices'
 import DrillDownPanel from './DrillDownPanel'
 import type { PriceEntry } from '../lib/prices'
@@ -29,6 +31,9 @@ interface Props {
 }
 
 export default function WatchlistTab({ prices, pricesLoading, onRefreshPrices }: Props) {
+  const { profile } = useUserProfile()
+  const userLanguage = profile?.ai_response_language ?? 'en'
+
   const [formTicker, setFormTicker] = useState('')
   const [formNote, setFormNote] = useState('')
   const [watchlistItems, setWatchlistItems] = useState<WatchlistItem[]>([])
@@ -520,23 +525,35 @@ export default function WatchlistTab({ prices, pricesLoading, onRefreshPrices }:
                       </div>
 
                       {/* Rationale */}
-                      <p className="text-sm text-gray-300 leading-relaxed">
+                      <p
+                        dir={getDirection(userLanguage)}
+                        className={`text-sm text-gray-300 leading-relaxed text-${getTextAlign(userLanguage)}`}
+                      >
                         {idea.rationale}
                       </p>
 
                       {/* Risk */}
-                      <p className="text-xs text-gray-500">
+                      <p
+                        dir={getDirection(userLanguage)}
+                        className={`text-xs text-gray-500 text-${getTextAlign(userLanguage)}`}
+                      >
                         <span className="font-medium">Risk:</span> {idea.risk}
                       </p>
 
                       {/* Sizing */}
-                      <p className="text-xs text-gray-500">
+                      <p
+                        dir={getDirection(userLanguage)}
+                        className={`text-xs text-gray-500 text-${getTextAlign(userLanguage)}`}
+                      >
                         <span className="font-medium">Sizing:</span> {idea.sizing}
                       </p>
 
                       {/* Tax considerations if present */}
                       {idea.tax_considerations && (
-                        <p className="text-xs text-yellow-600/80 bg-yellow-900/20 rounded p-2">
+                        <p
+                          dir={getDirection(userLanguage)}
+                          className={`text-xs text-yellow-600/80 bg-yellow-900/20 rounded p-2 text-${getTextAlign(userLanguage)}`}
+                        >
                           {idea.tax_considerations}
                         </p>
                       )}

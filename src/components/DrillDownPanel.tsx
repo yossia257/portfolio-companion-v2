@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { useResearchCache } from '../lib/useResearchCache'
 import { useAiSummaryCache } from '../lib/useAiSummaryCache'
+import { getDirection, getTextAlign } from '../lib/rtl'
 import type { PriceEntry, ErrorEntry } from '../lib/prices'
 import type { ResearchCacheRow } from '../lib/signals'
 
@@ -652,7 +653,12 @@ export default function DrillDownPanel({ holding, watchlistTicker, priceEntry, o
               </div>
             ) : aiSummary ? (
               <div>
-                <p className="text-sm text-gray-300 leading-relaxed mb-3">{aiSummary}</p>
+                <p
+                  dir={getDirection(language)}
+                  className={`text-sm text-gray-300 leading-relaxed mb-3 text-${getTextAlign(language)}`}
+                >
+                  {aiSummary}
+                </p>
                 {aiSummaryAt && (
                   <p className="text-xs text-gray-600 mb-3">Generated {fmtDateTime(aiSummaryAt)}</p>
                 )}
