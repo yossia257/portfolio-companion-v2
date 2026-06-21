@@ -20,6 +20,45 @@ interface Idea {
   tax_considerations?: string
 }
 
+// Robust JSON extraction: handles markdown fences, preamble, and partial responses
+function extractJsonArray(rawResponse: string): unknown[] {
+  // Strip markdown code fences if present
+  let cleaned = rawResponse
+    .replace(/^\s*```(?:json)?\s*\n?/i, '')
+    .replace(/\n?\s*```\s*$/i, '')
+    .trim()
+
+  // Find the JSON array within the response (handles any preamble)
+  const firstBracket = cleaned.indexOf('[')
+  const lastBracket = cleaned.lastIndexOf(']')
+  if (firstBracket === -1 || lastBracket === -1 || lastBracket < firstBracket) {
+    throw new Error('No JSON array found in response. Raw: ' + cleaned.substring(0, 500))
+  }
+
+  const jsonString = cleaned.substring(firstBracket, lastBracket + 1)
+  return JSON.parse(jsonString)
+}
+
+// Fallback: extract individual idea objects from string (handles truncated responses)
+function extractPartialIdeas(rawResponse: string): Idea[] {
+  const ideas: Idea[] = []
+  const objectRegex = /\{[^{}]*"ticker"[^{}]*\}/g
+  const matches = rawResponse.match(objectRegex) || []
+
+  for (const match of matches) {
+    try {
+      const obj = JSON.parse(match)
+      if (obj.ticker && obj.name && obj.asset_class && obj.rationale && obj.risk && obj.sizing) {
+        ideas.push(obj as Idea)
+      }
+    } catch {
+      // Skip malformed objects
+    }
+  }
+
+  return ideas
+}
+
 async function handler(req: Request): Promise<Response> {
   try {
     // CORS preflight
@@ -234,6 +273,10 @@ After the JSON array, append on a new line: "These are ideas for research, not f
 
     console.log('[generate-watchlist-ideas] Calling Anthropic Claude API...')
 
+    // Dynamic max_tokens for language: non-English languages need more tokens
+    const userLanguage = profile.ai_response_language || 'en'
+    const maxTokens = ['he', 'ar', 'ru', 'zh'].includes(userLanguage) ? 4000 : 2500
+
     // Call Anthropic API
     const anthropicRes = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
@@ -244,7 +287,7 @@ After the JSON array, append on a new line: "These are ideas for research, not f
       },
       body: JSON.stringify({
         model: 'claude-sonnet-4-6',
-        max_tokens: 2500,
+        max_tokens: maxTokens,
         system: systemPrompt,
         messages: [
           {
@@ -269,27 +312,29 @@ After the JSON array, append on a new line: "These are ideas for research, not f
 
     console.log('[generate-watchlist-ideas] Claude response received, parsing JSON...')
 
-    // Extract JSON from response (may have preamble/disclaimer)
+    // Extract JSON from response with robust handling
     let ideas: Idea[] = []
     try {
-      // Try to parse directly as JSON array
-      const jsonMatch = responseText.match(/\[\s*\{[\s\S]*\}\s*\]/)
-      if (jsonMatch) {
-        const jsonStr = jsonMatch[0]
-        ideas = JSON.parse(jsonStr)
-      } else {
-        throw new Error('No JSON array found in response')
+      const parsed = extractJsonArray(responseText)
+      if (Array.isArray(parsed)) {
+        ideas = parsed as Idea[]
       }
-    } catch (parseError) {
-      console.error('[generate-watchlist-ideas] JSON parse error:', parseError)
-      console.error('[generate-watchlist-ideas] Raw response:', responseText)
-      return new Response(JSON.stringify({ error: 'Failed to parse ideas from AI response' }), {
-        status: 500,
-        headers: { 'Content-Type': 'application/json', ...corsHeaders },
-      })
+    } catch (primaryError) {
+      console.warn('[generate-watchlist-ideas] Primary JSON extraction failed, trying fallback:', primaryError)
+      // Fallback: extract individual idea objects from the response
+      ideas = extractPartialIdeas(responseText)
+      if (ideas.length === 0) {
+        console.error('[generate-watchlist-ideas] Both parsing methods failed')
+        console.error('[generate-watchlist-ideas] Raw response:', responseText.substring(0, 1000))
+        return new Response(JSON.stringify({ error: 'Failed to parse ideas from AI response' }), {
+          status: 500,
+          headers: { 'Content-Type': 'application/json', ...corsHeaders },
+        })
+      }
+      console.log(`[generate-watchlist-ideas] Fallback extraction recovered ${ideas.length} ideas`)
     }
 
-    // Validate structure
+    // Validate we got at least some ideas
     if (!Array.isArray(ideas) || ideas.length === 0) {
       console.error('[generate-watchlist-ideas] Invalid ideas structure:', ideas)
       return new Response(JSON.stringify({ error: 'No valid ideas generated' }), {
