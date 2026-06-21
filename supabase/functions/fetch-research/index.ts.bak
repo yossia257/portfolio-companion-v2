@@ -92,12 +92,7 @@ Deno.serve(async (req) => {
     return json({ error: 'Method not allowed' }, 405)
   }
 
-  const t0 = Date.now()
-  const log = (label: string) => console.error(`[fetch-research] ${label}`, Date.now() - t0, 'ms')
-
   try {
-    log('START')
-
     // ── Parse body ──────────────────────────────────────────────────────────
     let body: unknown = null
     try { body = await req.json() } catch (e) {
@@ -116,6 +111,9 @@ Deno.serve(async (req) => {
     const force = (body as any)?.force === true
 
     // ── Resolve user's preferred language from their profile ─────────────────
+    // Extract JWT from Authorization header, validate it via Supabase auth,
+    // then query the user's profile with the service-role client.
+    // Default to 'en' if anything fails — language is a best-effort feature.
     let language = 'en'
     try {
       const jwt = req.headers.get('Authorization')?.replace(/^Bearer\s+/i, '').trim() ?? ''
@@ -135,230 +133,155 @@ Deno.serve(async (req) => {
     } catch (e) {
       console.error('[fetch-research] language resolution failed:', e)
     }
-    log(`LANGUAGE_RESOLVED (${language})`)
     console.error(`[fetch-research] processing: ${ticker}  language=${language}  force=${force}`)
 
-    // ── CACHE-FIRST: Read cache ─────────────────────────────────────────────
+    // ── Cache check ─────────────────────────────────────────────────────────
+    // Market data freshness: cached.fetched_at < 24h
+    // Summary freshness:     ai_summaries[language].at < 24h
+    // Both must be true for a cache hit.
     const { data: cached } = await supabase
       .from('ticker_research_cache')
       .select('*')
       .eq('ticker', ticker)
       .maybeSingle()
-    log('CACHE_READ')
 
-    // ── Check freshness of each component separately ──────────────────────────
-    const cacheAge = cached?.fetched_at
-      ? (Date.now() - new Date(cached.fetched_at).getTime()) / 1000 / 60 / 60
-      : 999 // hours
+    if (!force && cached) {
+      const dataAgeMs = Date.now() - new Date(cached.fetched_at).getTime()
+      const langEntry = (cached.ai_summaries as Record<string, any>)?.[language]
+      const langAgeMs = langEntry?.at
+        ? Date.now() - new Date(langEntry.at).getTime()
+        : Infinity
 
-    const hasFreshNews = cached?.news && cacheAge < 24
-    const hasFreshAnalyst = cached?.analyst_buy != null && cacheAge < 24
-    const hasFreshTechnicals = cached?.ma_20 != null && cacheAge < 24
-
-    const langEntry = (cached?.ai_summaries as Record<string, any>)?.[language]
-    const summaryAge = langEntry?.at
-      ? (Date.now() - new Date(langEntry.at).getTime()) / 1000 / 60 / 60
-      : 999
-    const hasFreshAISummary = langEntry?.text && summaryAge < 24
-
-    log(`FRESHNESS_CHECK (news=${hasFreshNews} analyst=${hasFreshAnalyst} technicals=${hasFreshTechnicals} summary=${hasFreshAISummary} cacheAge=${cacheAge.toFixed(1)}h)`)
-
-    // ── FULL CACHE HIT: if everything is fresh, return immediately ──────────
-    if (!force && hasFreshNews && hasFreshAnalyst && hasFreshTechnicals && hasFreshAISummary) {
-      log('FULL_CACHE_HIT_RETURNING')
-      return json({
-        research: {
-          ...cached,
-          ai_summary:    langEntry.text,
-          ai_summary_at: langEntry.at,
-        },
-        language,
-      })
+      if (dataAgeMs < CACHE_TTL_MS && langAgeMs < CACHE_TTL_MS && langEntry?.text) {
+        console.error(`[fetch-research] cache hit for ${ticker}/${language} (data ${Math.round(dataAgeMs / 60000)}min, summary ${Math.round(langAgeMs / 60000)}min)`)
+        return json({
+          research: {
+            ...cached,
+            ai_summary:    langEntry.text,
+            ai_summary_at: langEntry.at,
+          },
+          language,
+        })
+      }
+      console.error(`[fetch-research] cache miss for ${ticker}/${language}`)
     }
 
-    log(`PARTIAL_OR_MISS (fetching: news=${!hasFreshNews} analyst=${!hasFreshAnalyst} tech=${!hasFreshTechnicals} summary=${!hasFreshAISummary})`)
-
-    // ── PARTIAL CACHE: only fetch what's stale, in parallel ──────────────────
+    // ── Fetch all external data in parallel ─────────────────────────────────
     const today = yyyymmdd(new Date())
     const from  = yyyymmdd(new Date(Date.now() - 14 * 24 * 60 * 60 * 1000))
 
-    const fetches: Promise<any>[] = []
-    const fetchKeys: string[] = []
+    const [newsOut, analystOut, metricsOut, candleOut, profileOut] = await Promise.allSettled([
+      fetch(
+        `https://finnhub.io/api/v1/company-news?symbol=${encodeURIComponent(ticker)}&from=${from}&to=${today}&token=${FINNHUB_KEY}`
+      ).then(r => { console.error(`[fetch-research] Finnhub news ${r.status}`); return r.json() }),
 
-    if (!hasFreshNews) {
-      fetches.push(
-        fetch(
-          `https://finnhub.io/api/v1/company-news?symbol=${encodeURIComponent(ticker)}&from=${from}&to=${today}&token=${FINNHUB_KEY}`
-        ).then(r => { console.error(`[fetch-research] Finnhub news ${r.status}`); return r.json() })
-      )
-      fetchKeys.push('news')
-    }
+      fetch(
+        `https://finnhub.io/api/v1/stock/recommendation?symbol=${encodeURIComponent(ticker)}&token=${FINNHUB_KEY}`
+      ).then(r => { console.error(`[fetch-research] Finnhub analyst ${r.status}`); return r.json() }),
 
-    if (!hasFreshAnalyst) {
-      fetches.push(
-        fetch(
-          `https://finnhub.io/api/v1/stock/recommendation?symbol=${encodeURIComponent(ticker)}&token=${FINNHUB_KEY}`
-        ).then(r => { console.error(`[fetch-research] Finnhub analyst ${r.status}`); return r.json() })
-      )
-      fetchKeys.push('analyst')
-    }
+      fetch(
+        `https://finnhub.io/api/v1/stock/metric?symbol=${encodeURIComponent(ticker)}&metric=all&token=${FINNHUB_KEY}`
+      ).then(r => { console.error(`[fetch-research] Finnhub metrics ${r.status}`); return r.json() }),
 
-    if (!hasFreshTechnicals) {
-      fetches.push(
-        fetch(
-          `https://finnhub.io/api/v1/stock/metric?symbol=${encodeURIComponent(ticker)}&metric=all&token=${FINNHUB_KEY}`
-        ).then(r => { console.error(`[fetch-research] Finnhub metrics ${r.status}`); return r.json() })
-      )
-      fetchKeys.push('metrics')
-      fetches.push(
-        fetch(
-          `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(ticker)}?interval=1d&range=60d`,
-          { headers: { 'User-Agent': YAHOO_UA } }
-        ).then(r => { console.error(`[fetch-research] Yahoo candle ${r.status}`); return r.json() })
-      )
-      fetchKeys.push('candle')
-      fetches.push(
-        fetch(
-          `https://finnhub.io/api/v1/stock/profile2?symbol=${encodeURIComponent(ticker)}&token=${FINNHUB_KEY}`
-        ).then(r => { console.error(`[fetch-research] Finnhub profile ${r.status}`); return r.json() })
-      )
-      fetchKeys.push('profile')
-    }
+      fetch(
+        `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(ticker)}?interval=1d&range=60d`,
+        { headers: { 'User-Agent': YAHOO_UA } }
+      ).then(r => { console.error(`[fetch-research] Yahoo candle ${r.status}`); return r.json() }),
 
-    log(`PARALLEL_FETCH_START (${fetchKeys.join(',')})`)
-    const fetchResults = await Promise.allSettled(fetches)
-    log(`PARALLEL_FETCH_DONE`)
-
-    // Build response by merging cached + fetched data
-    let newsOut = { status: 'skipped' as const }
-    let analystOut = { status: 'skipped' as const }
-    let metricsOut = { status: 'skipped' as const }
-    let candleOut = { status: 'skipped' as const }
-    let profileOut = { status: 'skipped' as const }
-
-    let resultIdx = 0
-    if (!hasFreshNews) newsOut = fetchResults[resultIdx++] as any
-    if (!hasFreshAnalyst) analystOut = fetchResults[resultIdx++] as any
-    if (!hasFreshTechnicals) {
-      metricsOut = fetchResults[resultIdx++] as any
-      candleOut = fetchResults[resultIdx++] as any
-      profileOut = fetchResults[resultIdx++] as any
-    }
+      fetch(
+        `https://finnhub.io/api/v1/stock/profile2?symbol=${encodeURIComponent(ticker)}&token=${FINNHUB_KEY}`
+      ).then(r => { console.error(`[fetch-research] Finnhub profile ${r.status}`); return r.json() }),
+    ])
 
     // ── Extract: news ───────────────────────────────────────────────────────
-    let news: unknown[] = hasFreshNews && cached?.news ? cached.news : []
-    if (!hasFreshNews) {
-      if (newsOut.status === 'fulfilled' && Array.isArray(newsOut.value)) {
-        news = [...newsOut.value]
-          .sort((a: any, b: any) => (b.datetime ?? 0) - (a.datetime ?? 0))
-          .slice(0, 5)
-          .map((item: any) => ({
-            headline: item.headline ?? null,
-            summary:  typeof item.summary === 'string' ? item.summary.slice(0, 140) : null,
-            source:   item.source   ?? null,
-            datetime: item.datetime ?? null,
-            url:      item.url      ?? null,
-          }))
-        console.error(`[fetch-research] news: fetched ${news.length} items`)
-      } else {
-        console.error('[fetch-research] news fetch failed:', newsOut.status === 'rejected' ? newsOut.reason : 'not array')
-        if (cached?.news) {
-          news = cached.news
-          console.error('[fetch-research] news: using cache fallback')
-        }
-      }
+    let news: unknown[] = []
+    if (newsOut.status === 'fulfilled' && Array.isArray(newsOut.value)) {
+      news = [...newsOut.value]
+        .sort((a: any, b: any) => (b.datetime ?? 0) - (a.datetime ?? 0))
+        .slice(0, 5)
+        .map((item: any) => ({
+          headline: item.headline ?? null,
+          summary:  typeof item.summary === 'string' ? item.summary.slice(0, 140) : null,
+          source:   item.source   ?? null,
+          datetime: item.datetime ?? null,
+          url:      item.url      ?? null,
+        }))
+      console.error(`[fetch-research] news: ${news.length} items`)
     } else {
-      console.error(`[fetch-research] news: using cache (${news.length} items)`)
+      console.error('[fetch-research] news failed:', newsOut.status === 'rejected' ? newsOut.reason : 'not array')
     }
 
     // ── Extract: analyst ────────────────────────────────────────────────────
-    let analyst_buy:  number | null = cached?.analyst_buy ?? null
-    let analyst_hold: number | null = cached?.analyst_hold ?? null
-    let analyst_sell: number | null = cached?.analyst_sell ?? null
-    if (!hasFreshAnalyst) {
-      if (analystOut.status === 'fulfilled' && Array.isArray(analystOut.value) && analystOut.value.length > 0) {
-        const rec = analystOut.value[0]
-        analyst_buy  = rec.buy  ?? null
-        analyst_hold = rec.hold ?? null
-        analyst_sell = rec.sell ?? null
-        console.error(`[fetch-research] analyst: fetched B${analyst_buy} H${analyst_hold} S${analyst_sell}`)
-      } else {
-        console.error('[fetch-research] analyst fetch failed:', analystOut.status === 'rejected' ? analystOut.reason : 'empty')
-      }
+    let analyst_buy:  number | null = null
+    let analyst_hold: number | null = null
+    let analyst_sell: number | null = null
+    if (analystOut.status === 'fulfilled' && Array.isArray(analystOut.value) && analystOut.value.length > 0) {
+      const rec = analystOut.value[0]
+      analyst_buy  = rec.buy  ?? null
+      analyst_hold = rec.hold ?? null
+      analyst_sell = rec.sell ?? null
+      console.error(`[fetch-research] analyst: B${analyst_buy} H${analyst_hold} S${analyst_sell}`)
     } else {
-      console.error(`[fetch-research] analyst: using cache B${analyst_buy} H${analyst_hold} S${analyst_sell}`)
+      console.error('[fetch-research] analyst failed:', analystOut.status === 'rejected' ? analystOut.reason : 'empty')
     }
 
     // ── Extract: key metrics ────────────────────────────────────────────────
-    let pe_ratio:    number | null = cached?.pe_ratio ?? null
-    let beta:        number | null = cached?.beta ?? null
-    let eps:         number | null = cached?.eps ?? null
-    let week52_high: number | null = cached?.week52_high ?? null
-    let week52_low:  number | null = cached?.week52_low ?? null
-    let companyName: string        = cached?.companyName ?? ticker
-
-    if (!hasFreshTechnicals) {
-      if (metricsOut.status === 'fulfilled' && metricsOut.value?.metric) {
-        const m   = metricsOut.value.metric
-        pe_ratio    = m.peBasicExclExtraTTM       ?? null
-        beta        = m.beta                      ?? null
-        eps         = m.epsBasicExclExtraItemsTTM ?? null
-        week52_high = m['52WeekHigh']             ?? null
-        week52_low  = m['52WeekLow']              ?? null
-        companyName = metricsOut.value.series?.annual?.currentRatioAnnual?.[0]?.value
-                      ? ticker
-                      : (metricsOut.value.metric.name ?? ticker)
-        console.error(`[fetch-research] metrics: fetched pe=${pe_ratio} beta=${beta} 52w=${week52_low}-${week52_high}`)
-      } else {
-        console.error('[fetch-research] metrics fetch failed:', metricsOut.status === 'rejected' ? metricsOut.reason : 'no metric')
-      }
+    let pe_ratio:    number | null = null
+    let beta:        number | null = null
+    let eps:         number | null = null
+    let week52_high: number | null = null
+    let week52_low:  number | null = null
+    let companyName: string        = ticker
+    if (metricsOut.status === 'fulfilled' && metricsOut.value?.metric) {
+      const m   = metricsOut.value.metric
+      pe_ratio    = m.peBasicExclExtraTTM       ?? null
+      beta        = m.beta                      ?? null
+      eps         = m.epsBasicExclExtraItemsTTM ?? null
+      week52_high = m['52WeekHigh']             ?? null
+      week52_low  = m['52WeekLow']              ?? null
+      companyName = metricsOut.value.series?.annual?.currentRatioAnnual?.[0]?.value
+                    ? ticker
+                    : (metricsOut.value.metric.name ?? ticker)
+      console.error(`[fetch-research] metrics: pe=${pe_ratio} beta=${beta} 52w=${week52_low}-${week52_high}`)
     } else {
-      console.error(`[fetch-research] metrics: using cache pe=${pe_ratio} beta=${beta} 52w=${week52_low}-${week52_high}`)
+      console.error('[fetch-research] metrics failed:', metricsOut.status === 'rejected' ? metricsOut.reason : 'no metric')
     }
 
     // ── Extract: candle closes → technicals ────────────────────────────────
-    let ma_20:  number | null = cached?.ma_20 ?? null
-    let ma_50:  number | null = cached?.ma_50 ?? null
-    let rsi_14: number | null = cached?.rsi_14 ?? null
-    if (!hasFreshTechnicals) {
-      if (candleOut.status === 'fulfilled') {
-        const raw: unknown = candleOut.value?.chart?.result?.[0]?.indicators?.quote?.[0]?.close
-        if (Array.isArray(raw)) {
-          let closes = raw.filter((c: unknown): c is number => typeof c === 'number' && !isNaN(c))
-          if (ticker.endsWith('.TA')) closes = closes.map(c => c / 100)
-          console.error(`[fetch-research] candles: fetched ${closes.length} closes, last=${closes.at(-1)?.toFixed(2)}`)
-          ma_20  = computeMA(closes, 20)
-          ma_50  = computeMA(closes, 50)
-          rsi_14 = computeRSI(closes)
-          console.error(`[fetch-research] MA20=${ma_20?.toFixed(2)} MA50=${ma_50?.toFixed(2)} RSI=${rsi_14?.toFixed(1)}`)
-        }
-      } else {
-        console.error('[fetch-research] candle fetch failed:', candleOut.reason)
+    let ma_20:  number | null = null
+    let ma_50:  number | null = null
+    let rsi_14: number | null = null
+    if (candleOut.status === 'fulfilled') {
+      const raw: unknown = candleOut.value?.chart?.result?.[0]?.indicators?.quote?.[0]?.close
+      if (Array.isArray(raw)) {
+        let closes = raw.filter((c: unknown): c is number => typeof c === 'number' && !isNaN(c))
+        if (ticker.endsWith('.TA')) closes = closes.map(c => c / 100)
+        console.error(`[fetch-research] candles: ${closes.length} closes, last=${closes.at(-1)?.toFixed(2)}`)
+        ma_20  = computeMA(closes, 20)
+        ma_50  = computeMA(closes, 50)
+        rsi_14 = computeRSI(closes)
+        console.error(`[fetch-research] MA20=${ma_20?.toFixed(2)} MA50=${ma_50?.toFixed(2)} RSI=${rsi_14?.toFixed(1)}`)
       }
     } else {
-      console.error(`[fetch-research] technicals: using cache MA20=${ma_20?.toFixed(2)} MA50=${ma_50?.toFixed(2)} RSI=${rsi_14?.toFixed(1)}`)
+      console.error('[fetch-research] candle fetch failed:', candleOut.reason)
     }
 
     // ── Extract: company profile ────────────────────────────────────────────
-    let description: string | null = cached?.description ?? null
-    let industry:    string | null = cached?.industry ?? null
-    let sector:      string | null = cached?.sector ?? null
-    if (!hasFreshTechnicals) {
-      if (profileOut.status === 'fulfilled' && profileOut.value && typeof profileOut.value === 'object') {
-        const p = profileOut.value as any
-        const rawDesc = p.description ?? p.longDescription ?? null
-        description = typeof rawDesc === 'string' && rawDesc.length > 0
-          ? rawDesc.slice(0, 200).trimEnd() + (rawDesc.length > 200 ? '…' : '')
-          : null
-        industry = p.finnhubIndustry ?? p.gicsSector ?? null
-        sector   = p.gicsSector ?? p.finnhubIndustry ?? null
-        if (sector === industry) sector = null
-        console.error(`[fetch-research] profile: fetched industry=${industry} sector=${sector} desc=${description?.slice(0, 50)}`)
-      } else {
-        console.error('[fetch-research] profile fetch failed:', profileOut.status === 'rejected' ? profileOut.reason : 'empty/null')
-      }
+    let description: string | null = null
+    let industry:    string | null = null
+    let sector:      string | null = null
+    if (profileOut.status === 'fulfilled' && profileOut.value && typeof profileOut.value === 'object') {
+      const p = profileOut.value as any
+      const rawDesc = p.description ?? p.longDescription ?? null
+      description = typeof rawDesc === 'string' && rawDesc.length > 0
+        ? rawDesc.slice(0, 200).trimEnd() + (rawDesc.length > 200 ? '…' : '')
+        : null
+      industry = p.finnhubIndustry ?? p.gicsSector ?? null
+      sector   = p.gicsSector ?? p.finnhubIndustry ?? null
+      if (sector === industry) sector = null
+      console.error(`[fetch-research] profile: industry=${industry} sector=${sector} desc=${description?.slice(0, 50)}`)
     } else {
-      console.error(`[fetch-research] profile: using cache industry=${industry} sector=${sector}`)
+      console.error('[fetch-research] profile failed:', profileOut.status === 'rejected' ? profileOut.reason : 'empty/null')
     }
 
     // Price targets: FMP deprecated this endpoint Aug 2025.
@@ -374,8 +297,7 @@ Deno.serve(async (req) => {
     let ai_summary_text:  string | null = existingAiSummaries[language]?.text ?? null
     let ai_summary_at:    string | null = existingAiSummaries[language]?.at   ?? null
 
-    if (!hasFreshAISummary && ANTHROPIC_KEY) {
-      log(`AI_SUMMARY_GENERATING`)
+    if (ANTHROPIC_KEY) {
       try {
         const newsLines = (news as any[])
           .slice(0, 3)
@@ -412,7 +334,6 @@ Deno.serve(async (req) => {
           `${langInstruction}\n\n` +
           `Current data:\n${context}`
 
-        log(`AI_SUMMARY_CALL (${language})`)
         console.error(`[fetch-research] calling Anthropic for ${ticker} in ${language}`)
         const anthropicRes = await fetch('https://api.anthropic.com/v1/messages', {
           method: 'POST',
@@ -448,13 +369,10 @@ Deno.serve(async (req) => {
           const errBody = await anthropicRes.text()
           console.error(`[fetch-research] Anthropic error: ${errBody.slice(0, 300)}`)
         }
-        log(`AI_SUMMARY_DONE`)
       } catch (e) {
         console.error('[fetch-research] Anthropic fetch threw:', e)
-        log(`AI_SUMMARY_ERROR`)
       }
     } else {
-      log(`AI_SUMMARY_CACHED (${hasFreshAISummary ? 'fresh' : 'no_key'})`)
       console.error('[fetch-research] ANTHROPIC_API_KEY not set — skipping AI summary')
     }
 
@@ -486,14 +404,11 @@ Deno.serve(async (req) => {
       fetched_at:    new Date().toISOString(),
     }
 
-    log(`CACHE_UPDATE_START`)
     const { error: upsertErr } = await supabase
       .from('ticker_research_cache')
       .upsert(row, { onConflict: 'ticker' })
     if (upsertErr) console.error('[fetch-research] upsert error:', upsertErr.message)
-    log(`CACHE_UPDATE_DONE`)
 
-    log(`RETURNING`)
     return json({ research: row, language })
   } catch (err) {
     const msg   = err instanceof Error ? err.message : String(err)
