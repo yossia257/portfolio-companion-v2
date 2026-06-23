@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { toast } from 'sonner'
 import { supabase } from '../lib/supabase'
 import { useUserProfile } from '../lib/useUserProfile'
 
@@ -28,6 +29,9 @@ export default function SettingsTab({ onHoldingUpdated }: SettingsTabProps) {
     themes_to_avoid: '',
     tax_sensitivity: '',
   })
+  const [showDeleteModal, setShowDeleteModal] = useState(false)
+  const [deleteConfirmation, setDeleteConfirmation] = useState('')
+  const [deletingAccount, setDeletingAccount] = useState(false)
 
   // Sync display name and investment profile when profile loads
   useEffect(() => {
@@ -165,6 +169,41 @@ export default function SettingsTab({ onHoldingUpdated }: SettingsTabProps) {
 
   async function handleSignOut() {
     await supabase.auth.signOut()
+  }
+
+  async function handleDeleteAccount() {
+    if (deleteConfirmation !== 'DELETE MY ACCOUNT') return
+
+    setDeletingAccount(true)
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session) {
+        toast.error('Not authenticated')
+        return
+      }
+
+      const { error } = await supabase.functions.invoke('delete-account', {
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      })
+
+      if (error) {
+        toast.error('Failed to delete account')
+        console.error('Delete error:', error)
+        return
+      }
+
+      toast.success('Your account and all data have been deleted.')
+
+      // Sign out and redirect
+      await supabase.auth.signOut()
+      // The auth state change listener in App.tsx will handle the redirect
+    } catch (e) {
+      toast.error('An error occurred while deleting your account')
+      console.error('Delete error:', e)
+    } finally {
+      setDeletingAccount(false)
+      setShowDeleteModal(false)
+    }
   }
 
   async function handleInvestmentProfileChange(field: string, value: string) {
@@ -413,6 +452,14 @@ export default function SettingsTab({ onHoldingUpdated }: SettingsTabProps) {
           >
             Sign out
           </button>
+
+          {/* Delete Account */}
+          <button
+            onClick={() => setShowDeleteModal(true)}
+            className="w-full px-4 py-2 rounded-lg bg-red-600 text-white text-sm font-semibold hover:bg-red-700 transition-colors"
+          >
+            Delete account and all data
+          </button>
         </div>
       </div>
 
@@ -461,6 +508,47 @@ export default function SettingsTab({ onHoldingUpdated }: SettingsTabProps) {
           </div>
         )}
       </div>
+
+      {/* Delete Account Modal */}
+      {showDeleteModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="bg-gray-900 border border-gray-800 rounded-xl p-6 max-w-sm mx-4 shadow-xl">
+            <h3 className="text-lg font-semibold text-white mb-2">Delete your account?</h3>
+            <p className="text-sm text-gray-400 mb-4">
+              This permanently deletes your portfolio, RSU grants, watchlist, AI history, and account. This cannot be undone.
+            </p>
+
+            {/* Friction: require typing exact phrase */}
+            <input
+              type="text"
+              placeholder="Type DELETE MY ACCOUNT to confirm"
+              value={deleteConfirmation}
+              onChange={(e) => setDeleteConfirmation(e.target.value)}
+              className="w-full px-3 py-2 rounded-lg bg-gray-800 border border-gray-700 text-white text-sm placeholder-gray-600 mb-4 focus:outline-none focus:border-gray-500"
+            />
+
+            {/* Buttons */}
+            <div className="flex gap-3">
+              <button
+                onClick={() => {
+                  setShowDeleteModal(false)
+                  setDeleteConfirmation('')
+                }}
+                className="flex-1 px-4 py-2 rounded-lg bg-gray-800 text-gray-300 text-sm font-semibold hover:bg-gray-700 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleDeleteAccount}
+                disabled={deleteConfirmation !== 'DELETE MY ACCOUNT' || deletingAccount}
+                className="flex-1 px-4 py-2 rounded-lg bg-red-600 text-white text-sm font-semibold hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {deletingAccount ? 'Deleting…' : 'Delete account permanently'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Footer */}
       <div className="text-xs text-gray-600 text-center pt-4">

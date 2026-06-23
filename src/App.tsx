@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import type { Session } from '@supabase/supabase-js'
+import { Toaster } from 'sonner'
 import { supabase } from './lib/supabase'
 import MainPage from './pages/MainPage'
 import UploadPage from './pages/UploadPage'
@@ -48,15 +49,21 @@ export default function App() {
   // Logged-in routing
   if (session) {
     if (page === 'upload') return <UploadPage onBack={() => setPage('main')} />
-    return <MainPage
-      session={session}
-      onNavigateUpload={() => setPage('upload')}
-    />
+    return (
+      <>
+        <MainPage
+          session={session}
+          onNavigateUpload={() => setPage('upload')}
+        />
+        <Toaster theme="dark" position="bottom-center" />
+      </>
+    )
   }
 
   // Logged-out: login form (unchanged)
   return (
-    <div className="min-h-screen bg-gray-950 flex flex-col items-center justify-center px-4">
+    <>
+      <div className="min-h-screen bg-gray-950 flex flex-col items-center justify-center px-4">
       <h1 className="text-4xl font-bold text-white mb-10">
         Portfolio Companion — v2
       </h1>
@@ -108,6 +115,8 @@ export default function App() {
           </form>
         </div>
       )}
-    </div>
+      </div>
+      <Toaster theme="dark" position="bottom-center" />
+    </>
   )
 }

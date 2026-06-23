@@ -1,4 +1,5 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
+import { toast } from 'sonner'
 import { supabase } from '../lib/supabase'
 import { getDirection, getTextAlign } from '../lib/rtl'
 import { useUserProfile } from '../lib/useUserProfile'
@@ -198,22 +199,53 @@ export default function WatchlistTab({ prices, pricesLoading, onRefreshPrices }:
     }
   }
 
+  const deleteTimerRef = useRef<{ [id: string]: NodeJS.Timeout }>({})
+
   async function handleDeleteItem(id: string) {
-    try {
-      const { error } = await supabase
-        .from('watchlist_items')
-        .delete()
-        .eq('id', id)
+    const item = watchlistItems.find((i) => i.id === id)
+    if (!item) return
 
-      if (error) {
-        console.error('Error deleting from watchlist:', error)
-        return
+    // Optimistically remove from local state
+    const backup = watchlistItems
+    setWatchlistItems(watchlistItems.filter((i) => i.id !== id))
+
+    // Show toast with undo action
+    toast(`Removed ${item.ticker}`, {
+      action: {
+        label: 'Undo',
+        onClick: () => {
+          // Cancel the pending delete
+          if (deleteTimerRef.current[id]) {
+            clearTimeout(deleteTimerRef.current[id])
+            delete deleteTimerRef.current[id]
+          }
+          // Restore the item
+          setWatchlistItems(backup)
+        },
+      },
+      duration: 8000,
+    })
+
+    // Set timer for actual deletion
+    deleteTimerRef.current[id] = setTimeout(async () => {
+      try {
+        const { error } = await supabase
+          .from('watchlist_items')
+          .delete()
+          .eq('id', id)
+
+        if (error) {
+          console.error('Error deleting from watchlist:', error)
+          // Restore on failure
+          setWatchlistItems(backup)
+        }
+      } catch (e) {
+        console.error('Error:', e)
+        setWatchlistItems(backup)
+      } finally {
+        delete deleteTimerRef.current[id]
       }
-
-      await fetchWatchlist()
-    } catch (e) {
-      console.error('Error:', e)
-    }
+    }, 8000)
   }
 
   async function handleSaveNote(id: string, newNote: string) {
