@@ -267,13 +267,13 @@ export default function WatchlistTab({ prices, pricesLoading, onRefreshPrices }:
       <div className="px-6 py-8 max-w-7xl w-full mx-auto">
         {/* Header */}
         <div className="mb-8">
-          <h1 className="text-3xl font-bold mb-2">👀 Watchlist — ideas you're tracking</h1>
+          <h1 className="text-xl font-semibold text-white mb-4">Watchlist — ideas you're tracking</h1>
           <p className="text-sm text-gray-400">Add tickers manually or accept AI suggestions below. Click any ticker for full research.</p>
         </div>
 
         {/* Add Ticker Form */}
         <div className="mb-8 bg-gray-900 border border-gray-800 rounded-xl p-4 sm:p-6">
-          <h2 className="text-lg font-semibold mb-4">Add Ticker</h2>
+          <h2 className="text-lg font-semibold text-gray-200 mb-4">Add Ticker</h2>
           <div className="flex flex-col gap-3 sm:flex-row sm:gap-4 sm:items-end">
             <input
               type="text"
@@ -454,7 +454,7 @@ export default function WatchlistTab({ prices, pricesLoading, onRefreshPrices }:
           <div>
             {/* Header with Regenerate button */}
             <div className="flex items-center justify-between mb-6">
-              <h2 className="text-xl font-semibold flex items-center gap-2">🪄 AI suggestions for you today</h2>
+              <h2 className="text-lg font-semibold text-gray-200 flex items-center gap-2">🪄 AI suggestions for you today</h2>
               <button
                 onClick={() => {
                   setRegenButtonLoading(true)

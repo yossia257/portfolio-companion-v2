@@ -455,7 +455,7 @@ export default function PortfolioTab({
     <>
       {/* Header with Add button */}
       <div className="px-6 pt-6 pb-4 max-w-7xl w-full mx-auto flex items-center justify-between">
-        <h1 className="text-2xl font-bold">💼 Your Portfolio</h1>
+        <h1 className="text-xl font-semibold text-white">Your Portfolio</h1>
         <button
           onClick={() => setShowAddModal(true)}
           className="px-4 py-2 rounded-lg bg-blue-600 text-white font-semibold hover:bg-blue-500 transition-colors"

@@ -168,7 +168,7 @@ export default function AskClaudeTab() {
       {/* Header */}
       <div className="flex items-center justify-between px-6 py-4 border-b border-gray-800 shrink-0">
         <div>
-          <h2 className="text-xl font-semibold text-white">💬 Ask Claude</h2>
+          <h2 className="text-xl font-semibold text-white">Ask Claude</h2>
           <p className="text-xs text-gray-400 mt-1">Claude gives context, not advice.</p>
         </div>
         <button

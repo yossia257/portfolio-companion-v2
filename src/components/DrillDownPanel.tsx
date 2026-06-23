@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { useResearchCache } from '../lib/useResearchCache'
 import { useAiSummaryCache } from '../lib/useAiSummaryCache'
+import { useUserProfile } from '../lib/useUserProfile'
 import { getDirection, getTextAlign } from '../lib/rtl'
 import type { PriceEntry, ErrorEntry } from '../lib/prices'
 import type { ResearchCacheRow } from '../lib/signals'
@@ -114,9 +115,10 @@ function Stat({ label, value }: { label: string; value: string }) {
 // ── Component ──────────────────────────────────────────────────────────────
 
 export default function DrillDownPanel({ holding, watchlistTicker, priceEntry, onClose, rsuContext }: DrillDownPanelProps) {
+  const { profile } = useUserProfile()
   const [isVisible, setIsVisible] = useState(false)
   const [research, setResearch] = useState<ResearchCacheRow | null>(null)
-  const [language, setLanguage] = useState<string>('en')
+  const [selectedLanguage, setSelectedLanguage] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [aiSummary, setAiSummary] = useState<string | null>(null)
   const [aiSummaryAt, setAiSummaryAt] = useState<string | null>(null)
@@ -124,6 +126,9 @@ export default function DrillDownPanel({ holding, watchlistTicker, priceEntry, o
   const panelRef = useRef<HTMLDivElement>(null)
   const { fetch: fetchResearch } = useResearchCache()
   const { fetch: fetchAiSummary } = useAiSummaryCache()
+
+  // Resolved language: use profile language, fall back to English
+  const language = selectedLanguage ?? profile?.ai_response_language ?? 'en'
 
   // Flags state with safe defaults
   const [flags, setFlags] = useState(() => ({
@@ -239,7 +244,6 @@ export default function DrillDownPanel({ holding, watchlistTicker, priceEntry, o
     setError(null)
     try {
       let researchData = null
-      let language = 'en'
 
       if (force) {
         // Force refresh: bypass cache and fetch directly with force flag
@@ -248,7 +252,6 @@ export default function DrillDownPanel({ holding, watchlistTicker, priceEntry, o
         })
         if (error) throw new Error(error.message)
         researchData = data?.research ?? null
-        language = data?.language ?? 'en'
       } else {
         // Normal load: use cache with deduplication
         // If multiple panels open the same ticker simultaneously, they share one fetch
@@ -256,7 +259,6 @@ export default function DrillDownPanel({ holding, watchlistTicker, priceEntry, o
       }
 
       setResearch(researchData)
-      setLanguage(language)
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to load research data.')
     }
@@ -665,8 +667,8 @@ export default function DrillDownPanel({ holding, watchlistTicker, priceEntry, o
                 <div className="mt-3 flex items-center gap-2 flex-wrap">
                   <span className="text-xs text-gray-600">Language:</span>
                   <select
-                    value={language}
-                    onChange={(e) => setLanguage(e.target.value)}
+                    value={selectedLanguage ?? profile?.ai_response_language ?? 'en'}
+                    onChange={(e) => setSelectedLanguage(e.target.value)}
                     className="text-xs bg-gray-800 border border-gray-700 rounded px-2 py-1 text-gray-300"
                   >
                     {Object.entries(LANG_NAMES).map(([code, name]) => (

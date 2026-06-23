@@ -2,6 +2,8 @@
 
 html, body {
   overflow-x: hidden;
+  background-color: #0f172a;
+  color: #f3f4f6;
 }
 
 /* Hide scrollbar while keeping scroll functionality */

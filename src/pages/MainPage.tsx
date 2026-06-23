@@ -53,7 +53,7 @@ function readSortState(): { column: SortCol; direction: SortDir } {
   }
 }
 
-function getColumnValue(h: Holding, col: SortCol, prices: PriceMap): number | string | null {
+function getColumnValue(h: Holding, col: SortCol, prices: PriceMap, usdNis: number | null = null): number | string | null {
   switch (col) {
     case 'ticker': return h.ticker ?? null
     case 'name': return h.name ?? null
@@ -75,8 +75,22 @@ function getColumnValue(h: Holding, col: SortCol, prices: PriceMap): number | st
       const entry = prices[h.ticker]
       return entry != null && !('error' in entry) ? ((entry as any).pre_market_change_pct ?? null) : null
     }
-    case 'total_nis': return null // Calculated in PortfolioTab
-    case 'pnl_pct': return null // Calculated in PortfolioTab
+    case 'total_nis': {
+      const cur = prices[h.ticker]
+      if (cur == null || 'error' in cur) return null
+      const qty = h.quantity != null ? Number(h.quantity) : 0
+      const price = (cur as any).price ?? 0
+      const rate = h.currency === 'USD' && usdNis ? usdNis : 1
+      return qty * price * rate
+    }
+    case 'pnl_pct': {
+      const cur = prices[h.ticker]
+      if (cur == null || 'error' in cur) return null
+      const buyPrice = h.buy_price != null ? Number(h.buy_price) : 0
+      const curPrice = (cur as any).price ?? 0
+      if (buyPrice === 0) return null
+      return ((curPrice - buyPrice) / buyPrice) * 100
+    }
   }
 }
 
@@ -315,8 +329,8 @@ export default function MainPage({
   const rawList = holdings ?? []
   const list = rawList.length > 0
     ? rawList.slice().sort((a, b) => {
-        const aVal = getColumnValue(a, sortState.column, prices)
-        const bVal = getColumnValue(b, sortState.column, prices)
+        const aVal = getColumnValue(a, sortState.column, prices, usdNis)
+        const bVal = getColumnValue(b, sortState.column, prices, usdNis)
         return compareValues(aVal, bVal, sortState.direction)
       })
     : []

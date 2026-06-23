@@ -207,7 +207,7 @@ export default function SettingsTab({ onHoldingUpdated }: SettingsTabProps) {
 
       {/* Profile Section */}
       <div className="mb-8">
-        <h2 className="text-lg font-semibold mb-6">Profile</h2>
+        <h2 className="text-lg font-semibold text-gray-200 mt-6 mb-3">Profile</h2>
         <div className="space-y-6">
           {/* Display Name */}
           <div>
@@ -284,7 +284,7 @@ export default function SettingsTab({ onHoldingUpdated }: SettingsTabProps) {
 
       {/* Investment Profile Section */}
       <div className="mb-8">
-        <h2 className="text-lg font-semibold mb-2">🎯 Investment Profile</h2>
+        <h2 className="text-lg font-semibold text-gray-200 mt-6 mb-3">Investment Profile</h2>
         <p className="text-sm text-gray-400 mb-6">Helps Claude generate suggestions tailored to your style. All fields optional.</p>
 
         <div className="space-y-6">
@@ -385,7 +385,7 @@ export default function SettingsTab({ onHoldingUpdated }: SettingsTabProps) {
 
       {/* Behavior Section */}
       <div className="mb-8">
-        <h2 className="text-lg font-semibold mb-6">Behavior</h2>
+        <h2 className="text-lg font-semibold text-gray-200 mt-6 mb-3">Behavior</h2>
         <div className="p-4 rounded-lg bg-gray-900 border border-gray-800 text-gray-500 text-sm">
           More options coming in future sprints (refresh cadence, inline indicators, deletion behavior)
         </div>
@@ -393,7 +393,7 @@ export default function SettingsTab({ onHoldingUpdated }: SettingsTabProps) {
 
       {/* Security Section */}
       <div className="mb-8">
-        <h2 className="text-lg font-semibold mb-6">Security</h2>
+        <h2 className="text-lg font-semibold text-gray-200 mt-6 mb-3">Security</h2>
         <div className="space-y-4">
           {/* Email */}
           <div>
@@ -418,7 +418,7 @@ export default function SettingsTab({ onHoldingUpdated }: SettingsTabProps) {
 
       {/* Archived Holdings Section */}
       <div className="mb-8">
-        <h2 className="text-lg font-semibold mb-2">📦 Archived Holdings</h2>
+        <h2 className="text-lg font-semibold text-gray-200 mt-6 mb-3">Archived Holdings</h2>
         <p className="text-sm text-gray-400 mb-6">Holdings you deleted in the last 30 days. Restore to your portfolio at any time.</p>
 
         {archivedLoading ? (

@@ -95,7 +95,7 @@ export default function SignalsTab({
     <div className="px-6 py-8 max-w-6xl w-full mx-auto">
       {/* Header */}
       <div className="mb-8">
-        <h1 className="text-3xl font-bold mb-2">⚡ Signals — things worth a look</h1>
+        <h1 className="text-xl font-semibold text-white mb-4">Signals — things worth a look</h1>
         <p className="text-sm text-gray-400 mb-6">
           Auto-generated from your current portfolio and market data. Click any card to see full research.
         </p>
