@@ -468,17 +468,20 @@ export default function PortfolioTab({
       {/* Header with Add button */}
       <div className="px-6 pt-6 pb-4 max-w-7xl w-full mx-auto flex items-center justify-between">
         <h1 className="text-xl font-semibold text-white">Your Portfolio</h1>
-        <button
-          onClick={() => setShowAddModal(true)}
-          className="px-4 py-2 rounded-lg bg-blue-600 text-white font-semibold hover:bg-blue-500 transition-colors"
-        >
-          + Add Holding
-        </button>
+        {list.length > 0 && (
+          <button
+            onClick={() => setShowAddModal(true)}
+            className="px-4 py-2 rounded-lg bg-blue-600 text-white font-semibold hover:bg-blue-500 transition-colors"
+          >
+            + Add Holding
+          </button>
+        )}
       </div>
 
       {/* KPI row */}
       <div className="px-6 pb-8 max-w-7xl w-full mx-auto">
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+        {list.length > 0 && (
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
           {/* Total Value */}
           <div className="bg-gray-900 border border-gray-800 rounded-xl px-5 py-4">
             <p className="text-xs text-gray-500 uppercase tracking-wider mb-1">
@@ -527,6 +530,7 @@ export default function PortfolioTab({
             <p className="text-xl font-bold">{list.length}</p>
           </div>
         </div>
+        )}
 
         {/* Empty portfolio */}
         {list.length === 0 && (
