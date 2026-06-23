@@ -144,7 +144,7 @@ export default function MainPage({
     ])
 
     if (priceOutcome.status === 'fulfilled') {
-      setPrices(priceOutcome.value.prices)
+      setPrices(prev => ({ ...prev, ...priceOutcome.value.prices }))
       setMarket(priceOutcome.value.market)
       setLastUpdated(new Date())
     } else {
@@ -162,12 +162,11 @@ export default function MainPage({
 
   const handleRefreshPricesForWatchlist = useCallback(
     async (tickers: string[]) => {
-      const allTickers = [...new Set([...tickers, ...Object.keys(prices)])]
       await doRefreshPrices(
-        allTickers.map((ticker) => ({ ticker, quantity: 0, currency: 'USD', buy_price: 0 } as Holding))
+        tickers.map((ticker) => ({ ticker, quantity: 0, currency: 'USD', buy_price: 0 } as Holding))
       )
     },
-    [prices]
+    []
   )
 
   const handleFetchPricesForRsu = useCallback(
