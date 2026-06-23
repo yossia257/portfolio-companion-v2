@@ -162,11 +162,12 @@ export default function MainPage({
 
   const handleRefreshPricesForWatchlist = useCallback(
     async (tickers: string[]) => {
+      const allTickers = [...new Set([...tickers, ...Object.keys(prices)])]
       await doRefreshPrices(
-        tickers.map((ticker) => ({ ticker, quantity: 0, currency: 'USD', buy_price: 0 } as Holding))
+        allTickers.map((ticker) => ({ ticker, quantity: 0, currency: 'USD', buy_price: 0 } as Holding))
       )
     },
-    []
+    [prices]
   )
 
   const handleFetchPricesForRsu = useCallback(
