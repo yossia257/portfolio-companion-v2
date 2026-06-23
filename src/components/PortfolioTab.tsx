@@ -348,16 +348,28 @@ export default function PortfolioTab({
     setAddingHolding(true)
     try {
       const upperTicker = addFormData.ticker.toUpperCase()
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) throw new Error('Not authenticated')
 
-      // Get active portfolio
-      const { data: portfolio } = await supabase
+      // Get active portfolio, or create one if it doesn't exist
+      let { data: portfolio } = await supabase
         .from('portfolios')
         .select('id')
-        .eq('user_id', (await supabase.auth.getUser()).data.user?.id || '')
+        .eq('user_id', user.id)
         .eq('is_active', true)
         .maybeSingle()
 
-      if (!portfolio) throw new Error('No active portfolio')
+      // Defensive: if no portfolio exists, create one on the fly
+      if (!portfolio) {
+        const { data: newPortfolio, error: createError } = await supabase
+          .from('portfolios')
+          .insert({ user_id: user.id, name: 'My Portfolio', is_active: true })
+          .select('id')
+          .single()
+
+        if (createError || !newPortfolio) throw new Error('Failed to create portfolio')
+        portfolio = newPortfolio
+      }
 
       // Check if ticker already exists (for warning only)
       const exists = await checkTickerExists(upperTicker)
