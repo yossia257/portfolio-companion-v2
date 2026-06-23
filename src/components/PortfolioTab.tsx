@@ -539,7 +539,7 @@ export default function PortfolioTab({
                 {/* Add Manually */}
                 <button
                   onClick={() => setShowAddModal(true)}
-                  className="flex-1 sm:flex-none px-6 py-3 rounded-lg bg-accent text-slate-950 font-semibold hover:bg-yellow-400 transition-colors"
+                  className="flex-1 sm:flex-none px-6 py-3 rounded-lg bg-amber-500 text-slate-950 font-semibold hover:bg-amber-600 transition-colors"
                 >
                   + Add a holding manually
                 </button>
