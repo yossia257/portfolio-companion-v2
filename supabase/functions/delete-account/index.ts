@@ -1,5 +1,4 @@
-import { serve } from 'https://deno.land/std@0.208.0/http/server.ts'
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.38.4'
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -7,10 +6,10 @@ const corsHeaders = {
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 }
 
-serve(async (req: Request) => {
+Deno.serve(async (req) => {
   // Handle CORS preflight
   if (req.method === 'OPTIONS') {
-    return new Response('OK', { headers: corsHeaders })
+    return new Response('ok', { headers: corsHeaders })
   }
 
   // Only POST allowed
@@ -22,65 +21,54 @@ serve(async (req: Request) => {
   }
 
   try {
-    // Get the JWT from Authorization header
-    const authHeader = req.headers.get('Authorization')
-    if (!authHeader?.startsWith('Bearer ')) {
-      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+    // 1. Create a client that USES THE USER'S JWT to validate
+    const supabaseClient = createClient(
+      Deno.env.get('SUPABASE_URL')!,
+      Deno.env.get('SUPABASE_ANON_KEY')!,
+      {
+        global: {
+          headers: { Authorization: req.headers.get('Authorization')! },
+        },
+      }
+    )
+
+    // 2. Identify the calling user
+    const { data: { user }, error: authError } = await supabaseClient.auth.getUser()
+
+    if (authError || !user) {
+      console.error('[delete-account] auth failed:', authError)
+      return new Response(JSON.stringify({ error: 'Not authenticated' }), {
         status: 401,
-        headers: { 'Content-Type': 'application/json', ...corsHeaders },
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       })
     }
 
-    const jwt = authHeader.slice(7)
+    // 3. Now use the SERVICE ROLE client to delete the auth user (requires admin rights)
+    const supabaseAdmin = createClient(
+      Deno.env.get('SUPABASE_URL')!,
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+    )
 
-    // Create a Supabase client with the user's JWT to verify they are authenticated
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')
-    const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY')
-    const supabaseServiceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
-
-    if (!supabaseUrl || !supabaseAnonKey || !supabaseServiceRoleKey) {
-      return new Response(JSON.stringify({ error: 'Missing env vars' }), {
-        status: 500,
-        headers: { 'Content-Type': 'application/json', ...corsHeaders },
-      })
-    }
-
-    // Verify the JWT and get user ID
-    const userClient = createClient(supabaseUrl, supabaseAnonKey, {
-      global: { headers: { Authorization: `Bearer ${jwt}` } },
-    })
-
-    const { data: { user }, error: userError } = await userClient.auth.getUser()
-
-    if (userError || !user) {
-      return new Response(JSON.stringify({ error: 'Invalid token' }), {
-        status: 401,
-        headers: { 'Content-Type': 'application/json', ...corsHeaders },
-      })
-    }
-
-    // Use service role to delete the auth user (cascades to all related data via FK)
-    const adminClient = createClient(supabaseUrl, supabaseServiceRoleKey)
-
-    const { error: deleteError } = await adminClient.auth.admin.deleteUser(user.id)
+    const { error: deleteError } = await supabaseAdmin.auth.admin.deleteUser(user.id)
 
     if (deleteError) {
-      console.error('Auth delete error:', deleteError)
-      return new Response(JSON.stringify({ error: 'Failed to delete account' }), {
+      console.error('[delete-account] delete failed:', deleteError)
+      return new Response(JSON.stringify({ error: deleteError.message }), {
         status: 500,
-        headers: { 'Content-Type': 'application/json', ...corsHeaders },
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       })
     }
 
-    return new Response(JSON.stringify({ success: true }), {
+    // Cascading FK rules handle: profiles, portfolios, holdings, rsu_grants, watchlist_items, ai_watchlist_cache, ai_usage
+    return new Response(JSON.stringify({ success: true, deleted_user_id: user.id }), {
       status: 200,
-      headers: { 'Content-Type': 'application/json', ...corsHeaders },
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     })
   } catch (err) {
-    console.error('Unexpected error:', err)
-    return new Response(JSON.stringify({ error: 'Internal server error' }), {
+    console.error('[delete-account] CRASHED:', err)
+    return new Response(JSON.stringify({ error: String(err) }), {
       status: 500,
-      headers: { 'Content-Type': 'application/json', ...corsHeaders },
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     })
   }
 })
