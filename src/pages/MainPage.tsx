@@ -256,7 +256,24 @@ export default function MainPage({
       if (cancelled) return
 
       if (!portfolio) {
-        setHoldings(null)
+        // Defensive: create portfolio on-the-fly if it doesn't exist
+        // (e.g., if trigger hasn't fired yet or migration not deployed)
+        const { data: newPortfolio, error: createError } = await supabase
+          .from('portfolios')
+          .insert({ user_id: session.user.id, name: 'My Portfolio', is_active: true })
+          .select('id')
+          .single()
+
+        if (createError || !newPortfolio) {
+          console.error('Failed to create portfolio:', createError)
+          setHoldings(null)
+          setLoading(false)
+          if (!cancelled) doRefreshPrices([])
+          return
+        }
+
+        portfolioIdRef.current = newPortfolio.id
+        setHoldings([])
         setLoading(false)
         if (!cancelled) doRefreshPrices([])
         return
