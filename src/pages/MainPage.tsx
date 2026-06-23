@@ -347,7 +347,7 @@ export default function MainPage({
       <div className="sticky top-0 z-30 bg-gray-950 border-b border-gray-800">
         <header className="border-b border-gray-800 px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <div className="w-7 h-7 rounded-lg bg-accent flex items-center justify-center font-bold text-slate-950">
+            <div className="w-7 h-7 rounded-lg flex items-center justify-center font-bold text-white" style={{ backgroundColor: '#F59E0B' }}>
               P
             </div>
             <h1 className="text-lg font-bold tracking-tight">
