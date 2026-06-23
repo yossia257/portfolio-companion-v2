@@ -469,7 +469,9 @@ export default function WatchlistTab({ prices, pricesLoading, onRefreshPrices }:
 
             {/* Loading state */}
             {ideasLoading && ideas.length === 0 && (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              <div className="space-y-4">
+                <p className="text-center text-gray-400 text-sm">✨ Generating today's ideas...</p>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {[1, 2, 3].map((i) => (
                   <div
                     key={i}
@@ -484,6 +486,7 @@ export default function WatchlistTab({ prices, pricesLoading, onRefreshPrices }:
                     <div className="h-8 w-full rounded bg-gray-800 animate-pulse" />
                   </div>
                 ))}
+                </div>
               </div>
             )}
 
@@ -577,7 +580,7 @@ export default function WatchlistTab({ prices, pricesLoading, onRefreshPrices }:
             {/* Empty state for ideas */}
             {!ideasLoading && ideas.length === 0 && !ideasError && (
               <div className="text-center py-8 text-gray-500">
-                <p className="text-sm">No ideas generated yet. Check back later or click Regenerate.</p>
+                <p className="text-sm">Click Regenerate to get today's ideas</p>
               </div>
             )}
 

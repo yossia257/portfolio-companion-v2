@@ -424,7 +424,7 @@ export default function RsuTab({ prices = {}, onFetchPrices }: RsuTabProps) {
       {/* Grants Table */}
       {grants.length === 0 ? (
         <div className="text-center py-12 text-gray-500">
-          <p className="mb-4">No RSU grants yet. Start tracking your equity grants.</p>
+          <p className="mb-4">No RSU grants yet. Add your first to track vesting and tax estimates.</p>
           <button
             onClick={openAddModal}
             className="px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-semibold hover:bg-blue-500 transition-colors"
