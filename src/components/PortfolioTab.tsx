@@ -518,14 +518,33 @@ export default function PortfolioTab({
 
         {/* Empty portfolio */}
         {list.length === 0 && (
-          <div className="flex flex-col items-center justify-center py-24 gap-4 text-center border border-dashed border-gray-800 rounded-xl">
-            <p className="text-gray-400">No holdings yet in this portfolio.</p>
-            <button
-              onClick={onUpload}
-              className="px-5 py-2 rounded-lg bg-blue-600 text-white text-sm font-semibold hover:bg-blue-500 transition-colors"
-            >
-              Upload a file
-            </button>
+          <div className="flex flex-col items-center justify-center py-24 gap-8 text-center border border-dashed border-gray-800 rounded-xl">
+            <div>
+              <h2 className="text-xl font-semibold text-white mb-2">Welcome to Portfolio Companion</h2>
+              <p className="text-gray-400 mb-6">Add your holdings to get started — two ways:</p>
+
+              <div className="flex flex-col sm:flex-row gap-4 justify-center mb-6">
+                {/* Add Manually */}
+                <button
+                  onClick={() => setShowAddModal(true)}
+                  className="flex-1 sm:flex-none px-6 py-3 rounded-lg bg-accent text-slate-950 font-semibold hover:bg-yellow-400 transition-colors"
+                >
+                  + Add a holding manually
+                </button>
+
+                {/* Upload CSV */}
+                <button
+                  onClick={onUpload}
+                  className="flex-1 sm:flex-none px-6 py-3 rounded-lg border-2 border-gray-700 text-gray-300 font-semibold hover:border-gray-600 hover:bg-gray-900/50 transition-colors"
+                >
+                  Upload CSV/XLSX
+                </button>
+              </div>
+
+              <p className="text-xs text-gray-500 max-w-md mx-auto">
+                Add holdings one by one (recommended for small portfolios) or upload all at once from a spreadsheet.
+              </p>
+            </div>
           </div>
         )}
 
