@@ -1,12 +1,23 @@
 import { serve } from 'https://deno.land/std@0.208.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.38.4'
 
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+}
+
 serve(async (req: Request) => {
+  // Handle CORS preflight
+  if (req.method === 'OPTIONS') {
+    return new Response('OK', { headers: corsHeaders })
+  }
+
   // Only POST allowed
   if (req.method !== 'POST') {
     return new Response(JSON.stringify({ error: 'Method not allowed' }), {
       status: 405,
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...corsHeaders },
     })
   }
 
@@ -16,7 +27,7 @@ serve(async (req: Request) => {
     if (!authHeader?.startsWith('Bearer ')) {
       return new Response(JSON.stringify({ error: 'Unauthorized' }), {
         status: 401,
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...corsHeaders },
       })
     }
 
@@ -30,7 +41,7 @@ serve(async (req: Request) => {
     if (!supabaseUrl || !supabaseAnonKey || !supabaseServiceRoleKey) {
       return new Response(JSON.stringify({ error: 'Missing env vars' }), {
         status: 500,
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...corsHeaders },
       })
     }
 
@@ -44,7 +55,7 @@ serve(async (req: Request) => {
     if (userError || !user) {
       return new Response(JSON.stringify({ error: 'Invalid token' }), {
         status: 401,
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...corsHeaders },
       })
     }
 
@@ -57,19 +68,19 @@ serve(async (req: Request) => {
       console.error('Auth delete error:', deleteError)
       return new Response(JSON.stringify({ error: 'Failed to delete account' }), {
         status: 500,
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...corsHeaders },
       })
     }
 
     return new Response(JSON.stringify({ success: true }), {
       status: 200,
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...corsHeaders },
     })
   } catch (err) {
     console.error('Unexpected error:', err)
     return new Response(JSON.stringify({ error: 'Internal server error' }), {
       status: 500,
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...corsHeaders },
     })
   }
 })
