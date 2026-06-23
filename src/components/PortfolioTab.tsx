@@ -627,7 +627,8 @@ export default function PortfolioTab({
                   const preChangePct = hasLive ? ((entry as PriceEntry).pre_market_change_pct ?? null) : null
                   const total = nisValue(h)
                   const pnl = pnlPct(h)
-                  const waiting = pricesLoading && entry == null
+                  // Show spinner only if we have no price data at all; show cached price even while refreshing
+                  const waiting = cur == null && entry == null && pricesLoading
 
                   return (
                     <tr

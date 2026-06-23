@@ -17,6 +17,14 @@ const LANG_INSTRUCTIONS: Record<string, string> = {
   fr: 'Respond in French.',
 }
 
+const ANALYST_LABELS: Record<string, { buy: string; hold: string; sell: string }> = {
+  en: { buy: 'Buy', hold: 'Hold', sell: 'Sell' },
+  he: { buy: 'קנייה', hold: 'ניטרליים', sell: 'מכירה' },
+  es: { buy: 'Comprar', hold: 'Mantener', sell: 'Vender' },
+  de: { buy: 'Kauf', hold: 'Halten', sell: 'Verkauf' },
+  fr: { buy: 'Achat', hold: 'Neutre', sell: 'Vente' },
+}
+
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
     status,
@@ -134,19 +142,21 @@ Deno.serve(async (req) => {
       .map((n: any) => `  - ${n.headline}`)
       .join('\n') || '  (none available)'
 
+    const labels = ANALYST_LABELS[language] ?? ANALYST_LABELS.en
+
     const context = [
       `Ticker: ${ticker}${cached.companyName && cached.companyName !== ticker ? ` (${cached.companyName})` : ''}`,
       cached.week52_high != null && cached.week52_low != null
-        ? `52-week range: ${cached.week52_low} – ${cached.week52_high}` : null,
+        ? `52-week range: $${cached.week52_low.toFixed(2)} – $${cached.week52_high.toFixed(2)} (USD)` : null,
       cached.pe_ratio != null ? `PE (TTM): ${cached.pe_ratio.toFixed(1)}` : null,
-      cached.eps != null ? `EPS (TTM): ${cached.eps.toFixed(2)}` : null,
+      cached.eps != null ? `EPS (TTM): $${cached.eps.toFixed(2)} (USD)` : null,
       cached.beta != null ? `Beta: ${cached.beta.toFixed(2)}` : null,
       cached.analyst_buy != null
-        ? `Analyst ratings: ${cached.analyst_buy} Buy / ${cached.analyst_hold} Hold / ${cached.analyst_sell} Sell` : null,
+        ? `Analyst ratings: ${cached.analyst_buy} ${labels.buy} / ${cached.analyst_hold} ${labels.hold} / ${cached.analyst_sell} ${labels.sell}` : null,
       cached.ma_20 != null || cached.ma_50 != null
         ? `Moving averages: ${[
-            cached.ma_20 != null ? `MA20 ${cached.ma_20.toFixed(2)}` : null,
-            cached.ma_50 != null ? `MA50 ${cached.ma_50.toFixed(2)}` : null,
+            cached.ma_20 != null ? `MA20 $${cached.ma_20.toFixed(2)} (USD)` : null,
+            cached.ma_50 != null ? `MA50 $${cached.ma_50.toFixed(2)} (USD)` : null,
           ].filter(Boolean).join(', ')}` : null,
       cached.rsi_14 != null ? `RSI(14): ${cached.rsi_14.toFixed(1)}` : null,
       `Recent headlines:\n${newsLines}`,
@@ -161,6 +171,7 @@ Deno.serve(async (req) => {
       `and what is the single most important thing a current holder should watch.\n\n` +
       `IMPORTANT: End your response at a complete sentence with proper punctuation. Do not leave any sentence unfinished. ` +
       `If you're approaching the token limit, wrap up your current thought cleanly rather than starting a new one.\n\n` +
+      `CRITICAL RULE: All stock prices in this data are in USD. Always use 'USD' or '$' when discussing them, regardless of the response language. Never say 'shekels' or 'NIS' for USD prices.\n\n` +
       `${langInstruction}\n\n` +
       `Current data:\n${context}`
 
