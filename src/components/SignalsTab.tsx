@@ -81,9 +81,9 @@ export default function SignalsTab({
   const ccySymbol = displayCcy === 'NIS' ? '₪' : displayCcy === 'USD' ? '$' : displayCcy
 
   const severityConfig = {
-    action: { label: '⚠️ Action Items', bgColor: 'bg-red-950/20', badgeBg: 'bg-red-600', badgeText: 'text-white' },
-    warn: { label: '🔍 Worth Watching', bgColor: 'bg-amber-950/20', badgeBg: 'bg-amber-500', badgeText: 'text-gray-950' },
-    info: { label: 'ℹ️ FYI', bgColor: 'bg-blue-950/20', badgeBg: 'bg-blue-500', badgeText: 'text-white' },
+    action: { label: '⚠️ Action Items', bgColor: 'bg-red-950/20', badgeBg: 'bg-red-600', badgeText: 'text-white', borderColor: 'border-l-4 border-l-red-500' },
+    warn: { label: '🔍 Worth Watching', bgColor: 'bg-amber-950/20', badgeBg: 'bg-amber-500', badgeText: 'text-gray-950', borderColor: 'border-l-4 border-l-amber-500' },
+    info: { label: 'ℹ️ FYI', bgColor: 'bg-blue-950/20', badgeBg: 'bg-blue-500', badgeText: 'text-white', borderColor: 'border-l-4 border-l-blue-500' },
   }
 
   // Get holding for selected ticker to pass to DrillDownPanel
@@ -138,7 +138,7 @@ export default function SignalsTab({
                       onClick={() => setSelectedTicker(grouped.ticker)}
                       className="text-left"
                     >
-                      <div className={`p-4 rounded-lg border border-gray-800 ${config.bgColor} hover:border-gray-700 transition-all hover:shadow-lg cursor-pointer`}>
+                      <div className={`p-4 rounded-lg border border-gray-800 ${config.bgColor} ${config.borderColor} hover:border-gray-700 transition-all hover:shadow-lg cursor-pointer`}>
                         {/* Top row: severity badge and ticker */}
                         <div className="flex items-start justify-between gap-4 mb-3">
                           <span className={`px-2 py-1 rounded text-xs font-bold ${config.badgeBg} ${config.badgeText} uppercase tracking-wider whitespace-nowrap`}>

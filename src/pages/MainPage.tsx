@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { Session } from '@supabase/supabase-js'
+import { RefreshCw, Upload, LogOut } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { refreshPrices, fetchUsdToNis, type PriceMap, type MarketData } from '../lib/prices'
 import TickerBar from '../components/TickerBar'
@@ -344,7 +345,15 @@ export default function MainPage({
       {/* ── Sticky navigation chrome: header + ticker + tabs ── */}
       <div className="sticky top-0 z-30 bg-gray-950 border-b border-gray-800">
         <header className="border-b border-gray-800 px-6 py-4 flex items-center justify-between">
-          <h1 className="text-lg font-semibold tracking-tight">Portfolio Companion</h1>
+          <div className="flex items-center gap-2">
+            <div className="w-7 h-7 rounded-lg bg-accent flex items-center justify-center font-bold text-slate-900">
+              P
+            </div>
+            <h1 className="text-lg font-bold tracking-tight">
+              <span className="text-white">Portfolio</span>
+              <span className="text-accent">Companion</span>
+            </h1>
+          </div>
           <div className="flex items-center gap-3">
             {(pricesLoading || lastUpdated) && (
               <span className="hidden sm:flex items-center gap-1.5 text-xs text-gray-500">
@@ -356,29 +365,37 @@ export default function MainPage({
                   : 'Refreshing…'}
               </span>
             )}
-            {holdings !== null && holdings.length > 0 && (
+            <div className="flex items-center gap-3">
+              {holdings !== null && holdings.length > 0 && (
+                <button
+                  onClick={() => doRefreshPrices(holdings)}
+                  disabled={pricesLoading}
+                  title="Refresh prices"
+                  aria-label="Refresh prices"
+                  className="w-10 h-10 flex items-center justify-center rounded-lg text-gray-400 hover:text-gray-200 hover:bg-gray-800 transition-colors disabled:opacity-40"
+                >
+                  <RefreshCw className="w-5 h-5" />
+                </button>
+              )}
+              {holdings !== null && (
+                <button
+                  onClick={onNavigateUpload}
+                  title="Re-upload holdings"
+                  aria-label="Re-upload holdings"
+                  className="w-10 h-10 flex items-center justify-center rounded-lg text-gray-400 hover:text-gray-200 hover:bg-gray-800 transition-colors"
+                >
+                  <Upload className="w-5 h-5" />
+                </button>
+              )}
               <button
-                onClick={() => doRefreshPrices(holdings)}
-                disabled={pricesLoading}
-                className="px-3 py-2 rounded-lg bg-gray-800 text-gray-200 text-sm hover:bg-gray-700 transition-colors disabled:opacity-40"
+                onClick={signOut}
+                title="Sign out"
+                aria-label="Sign out"
+                className="w-10 h-10 flex items-center justify-center rounded-lg text-gray-400 hover:text-gray-200 hover:bg-gray-800 transition-colors"
               >
-                {pricesLoading ? 'Refreshing…' : 'Refresh ↻'}
+                <LogOut className="w-5 h-5" />
               </button>
-            )}
-            {holdings !== null && (
-              <button
-                onClick={onNavigateUpload}
-                className="px-4 py-2 rounded-lg bg-gray-800 text-gray-200 text-sm hover:bg-gray-700 transition-colors"
-              >
-                Re-upload
-              </button>
-            )}
-            <button
-              onClick={signOut}
-              className="px-4 py-2 rounded-lg bg-gray-800 text-gray-200 text-sm hover:bg-gray-700 transition-colors"
-            >
-              Sign out
-            </button>
+            </div>
           </div>
         </header>
         <TickerBar usdNis={usdNis} market={market} lastUpdated={lastUpdated} />

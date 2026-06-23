@@ -1,18 +1,20 @@
+import { Briefcase, FileText, Zap, Eye, MessageCircle, Settings } from 'lucide-react'
+
 type TabKey = 'portfolio' | 'rsu' | 'signals' | 'watchlist' | 'ask-claude' | 'settings'
 
 interface Tab {
   key: TabKey
   label: string
-  icon: string
+  Icon: React.ComponentType<{ className: string }>
 }
 
 const TABS: Tab[] = [
-  { key: 'portfolio', label: 'Portfolio', icon: '💼' },
-  { key: 'rsu', label: 'RSU', icon: '📋' },
-  { key: 'signals', label: 'Signals', icon: '⚡' },
-  { key: 'watchlist', label: 'Watchlist', icon: '👀' },
-  { key: 'ask-claude', label: 'Ask Claude', icon: '💬' },
-  { key: 'settings', label: 'Settings', icon: '⚙️' },
+  { key: 'portfolio', label: 'Portfolio', Icon: Briefcase },
+  { key: 'rsu', label: 'RSU', Icon: FileText },
+  { key: 'signals', label: 'Signals', Icon: Zap },
+  { key: 'watchlist', label: 'Watchlist', Icon: Eye },
+  { key: 'ask-claude', label: 'Ask Claude', Icon: MessageCircle },
+  { key: 'settings', label: 'Settings', Icon: Settings },
 ]
 
 export default function TabBar({
@@ -29,17 +31,14 @@ export default function TabBar({
           <button
             key={tab.key}
             onClick={() => onTabChange(tab.key)}
-            className={`py-3 px-4 font-medium transition-colors relative flex-shrink-0 snap-start ${
+            className={`py-3 px-4 font-medium transition-colors relative flex-shrink-0 snap-start flex items-center gap-2 ${
               activeTab === tab.key
-                ? 'text-white'
+                ? 'text-accent border-b-2 border-accent'
                 : 'text-gray-500 hover:text-gray-300'
             }`}
           >
-            <span className="mr-2">{tab.icon}</span>
+            <tab.Icon className="w-4 h-4" />
             {tab.label}
-            {activeTab === tab.key && (
-              <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-white" />
-            )}
           </button>
         ))}
       </div>
