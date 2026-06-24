@@ -29,10 +29,11 @@ interface Props {
   prices: PriceMap
   pricesLoading: boolean
   onRefreshPrices?: (tickers: string[]) => Promise<void>
+  research?: Record<string, any>
 }
 
-export default function WatchlistTab({ prices, pricesLoading, onRefreshPrices }: Props) {
-  const { profile } = useUserProfile()
+export default function WatchlistTab({ prices, pricesLoading, onRefreshPrices, research = {} }: Props) {
+  const { profile, isPremium } = useUserProfile()
   const userLanguage = profile?.ai_response_language ?? 'en'
 
   const [formTicker, setFormTicker] = useState('')
@@ -358,6 +359,7 @@ export default function WatchlistTab({ prices, pricesLoading, onRefreshPrices }:
                   <th className="px-4 py-3 text-left font-medium">Ticker</th>
                   <th className="px-4 py-3 text-right font-medium">Current Price</th>
                   <th className="px-4 py-3 text-right font-medium">Daily %</th>
+                  {isPremium && <th className="px-4 py-3 text-right font-medium">Target / Upside</th>}
                   <th className="px-4 py-3 text-left font-medium">Note</th>
                   <th className="px-4 py-3 text-left font-medium">Added</th>
                   <th className="px-4 py-3 text-left font-medium">Source</th>
@@ -408,6 +410,32 @@ export default function WatchlistTab({ prices, pricesLoading, onRefreshPrices }:
                           <span className="text-gray-600">—</span>
                         )}
                       </td>
+
+                      {/* Target / Upside (Premium only) */}
+                      {isPremium && (
+                        <td className="px-4 py-3 text-right text-sm">
+                          {(() => {
+                            const researchData = research[item.ticker]
+                            const target = researchData?.target_price_mean
+                            const cur = priceData?.price
+
+                            if (target != null && cur != null) {
+                              const upside = ((target - cur) / cur) * 100
+                              const color = upside > 0 ? 'text-green-400' : upside < 0 ? 'text-red-400' : 'text-gray-400'
+                              return (
+                                <div className="space-y-0.5">
+                                  <div className="text-gray-300">${target.toFixed(0)}</div>
+                                  <div className={`text-xs ${color}`}>
+                                    {upside > 0 ? '+' : ''}{upside.toFixed(0)}%
+                                  </div>
+                                </div>
+                              )
+                            }
+
+                            return <span className="text-gray-600">—</span>
+                          })()}
+                        </td>
+                      )}
 
                       {/* Note */}
                       <td className="px-4 py-3 text-gray-300 max-w-xs">

@@ -482,6 +482,7 @@ export default function MainPage({
             onSortClick={handleSortClick}
             onUpload={onNavigateUpload}
             onHoldingUpdated={refetchHoldings}
+            research={research}
           />
         )}
 
@@ -506,6 +507,7 @@ export default function MainPage({
             prices={prices}
             pricesLoading={pricesLoading}
             onRefreshPrices={handleRefreshPricesForWatchlist}
+            research={research}
           />
         )}
 

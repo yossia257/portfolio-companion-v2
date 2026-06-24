@@ -468,12 +468,29 @@ export default function DrillDownPanel({ holding, watchlistTicker, priceEntry, o
                     <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-red-500 inline-block" />{research.analyst_sell ?? 0} Sell</span>
                   </div>
                   {research.target_price_mean != null && (
-                    <p className="text-sm text-gray-300 mt-1">
-                      Target: {ccySym}{fmtNum(research.target_price_mean)}
-                      {research.target_price_low != null && research.target_price_high != null && (
-                        <span className="text-gray-500"> (range {ccySym}{fmtNum(research.target_price_low)}–{ccySym}{fmtNum(research.target_price_high)})</span>
+                    <div className="text-sm text-gray-300 mt-3 space-y-1.5">
+                      <p>
+                        Analyst target: {ccySym}{fmtNum(research.target_price_mean)}
+                        {research.target_price_low != null && research.target_price_high != null && (
+                          <span className="text-gray-500 text-xs ml-1">
+                            (range {ccySym}{fmtNum(research.target_price_low)}–{ccySym}{fmtNum(research.target_price_high)}
+                            {research.target_price_median != null && (
+                              <span>, median {ccySym}{fmtNum(research.target_price_median)}</span>
+                            )}
+                            )
+                          </span>
+                        )}
+                      </p>
+                      {curPrice != null && (
+                        <p className="text-xs text-gray-400">
+                          Current: {ccySym}{fmtNum(curPrice)}
+                          {' — '}
+                          <span className={curPrice < research.target_price_mean ? 'text-green-400' : 'text-red-400'}>
+                            upside {(((research.target_price_mean - curPrice) / curPrice) * 100).toFixed(1)}%
+                          </span>
+                        </p>
                       )}
-                    </p>
+                    </div>
                   )}
                 </div>
               )

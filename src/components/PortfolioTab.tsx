@@ -201,6 +201,7 @@ interface PortfolioTabProps {
   onSortClick: (col: SortCol) => void
   onUpload: () => void
   onHoldingUpdated?: () => Promise<void>
+  research?: Record<string, any>
 }
 
 export default function PortfolioTab({
@@ -214,6 +215,7 @@ export default function PortfolioTab({
   onSortClick,
   onUpload,
   onHoldingUpdated,
+  research = {},
 }: PortfolioTabProps) {
   const [selectedHolding, setSelectedHolding] = useState<Holding | null>(null)
   const [deleteConfirm, setDeleteConfirm] = useState<Holding | null>(null)
@@ -650,7 +652,7 @@ export default function PortfolioTab({
                   <th
                     className="px-4 py-3 text-left font-medium text-gray-400"
                   >
-                    Category
+                    {isPremium ? 'Target / Upside' : 'Category'}
                   </th>
                   <th
                     className="px-4 py-3 text-right font-medium text-gray-400"
@@ -790,14 +792,41 @@ export default function PortfolioTab({
                         )}
                       </td>
 
-                      {/* Category */}
-                      <td className="px-4 py-3 text-left text-gray-300">
-                        <EditableCell
-                          value={h.category}
-                          type="category"
-                          holdingId={h.id}
-                          onSave={onHoldingUpdated}
-                        />
+                      {/* Category / Target Upside */}
+                      <td className="px-4 py-3 text-left">
+                        {isPremium ? (
+                          (() => {
+                            const researchData = research[h.ticker]
+                            const target = researchData?.target_price_mean
+                            const skipReason = researchData?.target_skip_reason
+
+                            if (skipReason === 'ETF') {
+                              return <span className="text-gray-500 text-sm">ETF</span>
+                            }
+
+                            if (target != null && cur != null) {
+                              const upside = ((target - cur) / cur) * 100
+                              const color = upside > 0 ? 'text-green-400' : upside < 0 ? 'text-red-400' : 'text-gray-400'
+                              return (
+                                <div className="flex flex-col gap-0.5">
+                                  <span className="text-gray-300">${target.toFixed(2)}</span>
+                                  <span className={`text-sm ${color}`}>
+                                    {upside > 0 ? '+' : ''}{upside.toFixed(1)}%
+                                  </span>
+                                </div>
+                              )
+                            }
+
+                            return <span className="text-gray-600">—</span>
+                          })()
+                        ) : (
+                          <EditableCell
+                            value={h.category}
+                            type="category"
+                            holdingId={h.id}
+                            onSave={onHoldingUpdated}
+                          />
+                        )}
                       </td>
 
                       {/* Delete action */}
