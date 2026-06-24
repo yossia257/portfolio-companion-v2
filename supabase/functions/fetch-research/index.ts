@@ -396,11 +396,12 @@ Deno.serve(async (req) => {
       target_price_mean: cached?.target_price_mean ?? null,
       target_price_low: cached?.target_price_low ?? null,
       target_price_high: cached?.target_price_high ?? null,
-      target_price_median: cached?.target_price_median ?? null,
       target_skip_reason: cached?.target_skip_reason ?? null,
       ai_summaries: existingAiSummaries,  // Preserve existing summaries; AI summary delegated to fetch-ai-summary
       fetched_at: new Date().toISOString(),
     }
+
+    console.error(`[fetch-research] ${ticker} response has target_price_mean: ${row.target_price_mean}`)
 
     log(`CACHE_UPDATE_START`)
     const { data: upsertResult, error: upsertErr } = await supabase

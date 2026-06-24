@@ -115,6 +115,7 @@ function Stat({ label, value }: { label: string; value: string }) {
 // ── Component ──────────────────────────────────────────────────────────────
 
 export default function DrillDownPanel({ holding, watchlistTicker, priceEntry, onClose, rsuContext }: DrillDownPanelProps) {
+  console.error('[DrillDownPanel] mount, holding:', holding, 'watchlistTicker:', watchlistTicker, 'priceEntry:', priceEntry)
   const { profile } = useUserProfile()
   const [isVisible, setIsVisible] = useState(false)
   const [research, setResearch] = useState<ResearchCacheRow | null>(null)

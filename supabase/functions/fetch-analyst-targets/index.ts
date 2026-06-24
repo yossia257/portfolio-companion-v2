@@ -29,7 +29,10 @@ async function fetchYahooTargets(ticker: string): Promise<TargetPrice> {
       return { error: `HTTP ${res.status}` }
     }
 
-    const data = await res.json()
+    const text = await res.text()
+    console.error(`[fetch-analyst-targets] Yahoo raw response for ${ticker} (first 500 chars):`, text.substring(0, 500))
+
+    const data = JSON.parse(text)
     const fd = data.quoteSummary?.result?.[0]?.financialData
 
     if (!fd) {
@@ -37,12 +40,8 @@ async function fetchYahooTargets(ticker: string): Promise<TargetPrice> {
       return { error: 'no_data' }
     }
 
-    console.log(`[fetch-analyst-targets] Yahoo raw financialData for ${ticker}:`, JSON.stringify({
-      targetMeanPrice: fd.targetMeanPrice,
-      targetHighPrice: fd.targetHighPrice,
-      targetLowPrice: fd.targetLowPrice,
-      targetMedianPrice: fd.targetMedianPrice,
-    }))
+    console.error(`[fetch-analyst-targets] financialData keys for ${ticker}:`, fd ? Object.keys(fd) : 'null')
+    console.error(`[fetch-analyst-targets] Yahoo extracted for ${ticker}: mean=${fd?.targetMeanPrice?.raw} high=${fd?.targetHighPrice?.raw} low=${fd?.targetLowPrice?.raw}`)
 
     return {
       mean: fd.targetMeanPrice?.raw ?? null,
