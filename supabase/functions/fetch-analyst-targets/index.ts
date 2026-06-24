@@ -37,6 +37,13 @@ async function fetchYahooTargets(ticker: string): Promise<TargetPrice> {
       return { error: 'no_data' }
     }
 
+    console.log(`[fetch-analyst-targets] Yahoo raw financialData for ${ticker}:`, JSON.stringify({
+      targetMeanPrice: fd.targetMeanPrice,
+      targetHighPrice: fd.targetHighPrice,
+      targetLowPrice: fd.targetLowPrice,
+      targetMedianPrice: fd.targetMedianPrice,
+    }))
+
     return {
       mean: fd.targetMeanPrice?.raw ?? null,
       low: fd.targetLowPrice?.raw ?? null,

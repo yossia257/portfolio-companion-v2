@@ -258,7 +258,13 @@ export default function DrillDownPanel({ holding, watchlistTicker, priceEntry, o
         researchData = await fetchResearch(ticker)
       }
 
-      console.log('[DrillDownPanel] research loaded:', researchData)
+      const ticker = holding?.ticker ?? watchlistTicker
+      console.log(`[DrillDownPanel] research loaded for ${ticker}:`, {
+        target_price_mean: researchData?.target_price_mean,
+        target_price_high: researchData?.target_price_high,
+        target_price_low: researchData?.target_price_low,
+        target_skip_reason: researchData?.target_skip_reason,
+      })
       setResearch(researchData)
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to load research data.')
