@@ -551,14 +551,16 @@ export default function PortfolioTab({
             ) : displayDailyChangeNis == null ? (
               <p className="text-xl font-bold text-gray-600">—</p>
             ) : (
-              <div className="space-y-0.5">
-                <p className={`text-xl font-bold ${displayDailyChangeNis > 0.01 ? 'text-green-400' : displayDailyChangeNis < -0.01 ? 'text-red-400' : 'text-gray-400'}`}>
+              <p className="text-xl font-bold">
+                <span className={displayDailyChangeNis > 0.01 ? 'text-green-400' : displayDailyChangeNis < -0.01 ? 'text-red-400' : 'text-gray-400'}>
                   {displayDailyChangeNis > 0 ? '+' : ''}{fmtNis(displayDailyChangeNis)}
-                </p>
-                <p className={`text-xs ${displayDailyChangePct && displayDailyChangePct > 0.5 ? 'text-green-400' : displayDailyChangePct && displayDailyChangePct < -0.5 ? 'text-red-400' : 'text-gray-400'}`}>
-                  {displayDailyChangePct ? `${displayDailyChangePct > 0 ? '+' : ''}${displayDailyChangePct.toFixed(1)}%` : '—'}
-                </p>
-              </div>
+                </span>
+                {displayDailyChangePct != null && (
+                  <span className={`text-base ml-2 ${displayDailyChangePct > 0.5 ? 'text-green-400' : displayDailyChangePct < -0.5 ? 'text-red-400' : 'text-gray-400'}`}>
+                    {displayDailyChangePct > 0 ? '+' : ''}{displayDailyChangePct.toFixed(1)}%
+                  </span>
+                )}
+              </p>
             )}
           </div>
 
