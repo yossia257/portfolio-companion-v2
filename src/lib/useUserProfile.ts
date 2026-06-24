@@ -6,6 +6,7 @@ export interface UserProfile {
   display_name: string | null
   display_currency: 'USD' | 'NIS' | 'EUR' | 'GBP'
   ai_response_language: 'en' | 'he' | 'es' | 'de' | 'fr'
+  tier?: 'free' | 'premium'
   tax_jurisdiction?: 'IL' | 'US' | 'UK' | 'EU' | 'OTHER'
   email?: string
 }
@@ -90,5 +91,11 @@ export function useUserProfile() {
     }
   }
 
-  return { profile, updateProfile, loading, error }
+  return {
+    profile,
+    updateProfile,
+    loading,
+    error,
+    isPremium: profile?.tier === 'premium',
+  }
 }
