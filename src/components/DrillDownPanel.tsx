@@ -347,6 +347,14 @@ export default function DrillDownPanel({ holding, watchlistTicker, priceEntry, o
   const flagsWatch = flags.watch ?? false
   const flagsThesisBroken = flags.thesis_broken ?? false
 
+  // Target price calculations (hoisted to prevent TDZ errors)
+  const targetMean = research?.target_price_mean ?? null
+  const targetLow = research?.target_price_low ?? null
+  const targetHigh = research?.target_price_high ?? null
+  const targetUpside = targetMean != null && curPrice != null && curPrice > 0
+    ? ((targetMean - curPrice) / curPrice) * 100
+    : null
+
   return (
     <>
       {/* Backdrop — click outside to close */}
@@ -475,26 +483,26 @@ export default function DrillDownPanel({ holding, watchlistTicker, priceEntry, o
                     <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-yellow-500 inline-block" />{research.analyst_hold ?? 0} Hold</span>
                     <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-red-500 inline-block" />{research.analyst_sell ?? 0} Sell</span>
                   </div>
-                  {research.target_price_mean != null && (
+                  {targetMean != null && (
                     <div className="text-sm text-gray-300 mt-3 space-y-1.5">
                       <p>
-                        Analyst target: {ccySym}{fmtNum(research.target_price_mean)}
-                        {curPrice != null && (
-                          <span className={`ml-2 text-xs font-semibold ${curPrice < research.target_price_mean ? 'text-green-400' : 'text-red-400'}`}>
-                            [{curPrice < research.target_price_mean ? '+' : ''}{(((research.target_price_mean - curPrice) / curPrice) * 100).toFixed(1)}%]
+                        Analyst target: {ccySym}{fmtNum(targetMean)}
+                        {targetUpside != null && (
+                          <span className={`ml-2 text-xs font-semibold ${targetUpside >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                            [{targetUpside >= 0 ? '+' : ''}{targetUpside.toFixed(1)}%]
                           </span>
                         )}
-                        {(research.target_price_low != null || research.target_price_high != null) && (
+                        {(targetLow != null || targetHigh != null) && (
                           <span className="text-gray-500 text-xs ml-1">
                             (
-                            {research.target_price_low != null && research.target_price_high != null ? (
+                            {targetLow != null && targetHigh != null ? (
                               <>
-                                low {ccySym}{fmtNum(research.target_price_low)} · high {ccySym}{fmtNum(research.target_price_high)}
+                                low {ccySym}{fmtNum(targetLow)} · high {ccySym}{fmtNum(targetHigh)}
                               </>
-                            ) : research.target_price_low != null ? (
-                              <>low {ccySym}{fmtNum(research.target_price_low)}</>
+                            ) : targetLow != null ? (
+                              <>low {ccySym}{fmtNum(targetLow)}</>
                             ) : (
-                              <>high {ccySym}{fmtNum(research.target_price_high)}</>
+                              <>high {ccySym}{fmtNum(targetHigh)}</>
                             )}
                             )
                           </span>
