@@ -472,6 +472,11 @@ export default function DrillDownPanel({ holding, watchlistTicker, priceEntry, o
                     <div className="text-sm text-gray-300 mt-3 space-y-1.5">
                       <p>
                         Analyst target: {ccySym}{fmtNum(research.target_price_mean)}
+                        {curPrice != null && (
+                          <span className={`ml-2 text-xs font-semibold ${curPrice < research.target_price_mean ? 'text-green-400' : 'text-red-400'}`}>
+                            [{curPrice < research.target_price_mean ? '+' : ''}{(((research.target_price_mean - curPrice) / curPrice) * 100).toFixed(1)}%]
+                          </span>
+                        )}
                         {(research.target_price_low != null || research.target_price_high != null) && (
                           <span className="text-gray-500 text-xs ml-1">
                             (
@@ -494,10 +499,6 @@ export default function DrillDownPanel({ holding, watchlistTicker, priceEntry, o
                       {curPrice != null && (
                         <p className="text-xs text-gray-400">
                           Current: {ccySym}{fmtNum(curPrice)}
-                          {' — '}
-                          <span className={curPrice < research.target_price_mean ? 'text-green-400' : 'text-red-400'}>
-                            upside {(((research.target_price_mean - curPrice) / curPrice) * 100).toFixed(1)}%
-                          </span>
                         </p>
                       )}
                     </div>
