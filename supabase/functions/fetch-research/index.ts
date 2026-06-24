@@ -375,7 +375,7 @@ Deno.serve(async (req) => {
     // ── Build row and upsert ────────────────────────────────────────────────
     // ONLY write columns that exist in ticker_research_cache:
     // - NO ai_summary (singular) or ai_summary_at — use ai_summaries (JSONB) instead
-    // - NO target_price_* — FMP endpoint was deprecated, columns don't exist
+    // - target_price_* columns: preserve from cache (don't overwrite with stale data from fetch-research)
     const row = {
       ticker,
       description,
@@ -393,6 +393,11 @@ Deno.serve(async (req) => {
       ma_20,
       ma_50,
       rsi_14,
+      target_price_mean: cached?.target_price_mean ?? null,
+      target_price_low: cached?.target_price_low ?? null,
+      target_price_high: cached?.target_price_high ?? null,
+      target_price_median: cached?.target_price_median ?? null,
+      target_skip_reason: cached?.target_skip_reason ?? null,
       ai_summaries: existingAiSummaries,  // Preserve existing summaries; AI summary delegated to fetch-ai-summary
       fetched_at: new Date().toISOString(),
     }

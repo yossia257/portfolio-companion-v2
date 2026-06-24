@@ -460,12 +460,48 @@ export default function PortfolioTab({
     return ((live - buy) / buy) * 100
   }
 
+  function dailyChangeNis(h: Holding): number | null {
+    const qty = h.quantity != null ? Number(h.quantity) : null
+    if (qty == null || isNaN(qty)) return null
+
+    const entry = prices[h.ticker]
+    const live = entry != null && !('error' in entry) ? (entry as PriceEntry) : null
+    if (live?.price == null || live.daily_change_pct == null) return null
+
+    const changeInCurrency = qty * live.price * (live.daily_change_pct / 100)
+    const ccy = h.currency?.toUpperCase()
+
+    if (ccy === 'USD') {
+      if (usdNis == null) return null
+      return changeInCurrency * usdNis
+    }
+    if (ccy === 'NIS') {
+      return changeInCurrency
+    }
+    return null
+  }
+
+  let totalDailyChangeNis: number | null = null
+  let dailyChangeCount = 0
+
   for (const h of list) {
     const v = nisValue(h)
     if (v != null) totalNis = (totalNis ?? 0) + v
     const pnl = pnlPct(h)
     if (pnl != null) performers.push({ ticker: h.ticker, pnl })
+
+    const dailyChange = dailyChangeNis(h)
+    if (dailyChange != null) {
+      totalDailyChangeNis = (totalDailyChangeNis ?? 0) + dailyChange
+      dailyChangeCount++
+    }
   }
+
+  // If >50% of holdings lack daily change data, don't show (partial total is misleading)
+  const hasEnoughDailyData = list.length === 0 || dailyChangeCount / list.length > 0.5
+  const displayDailyChangeNis = hasEnoughDailyData ? totalDailyChangeNis : null
+  const displayDailyChangePct = totalNis != null && displayDailyChangeNis != null ?
+    (displayDailyChangeNis / totalNis) * 100 : null
 
   performers.sort((a, b) => a.pnl - b.pnl)
   const worst = performers[0] ?? null
@@ -494,7 +530,7 @@ export default function PortfolioTab({
       {/* KPI row */}
       <div className="px-6 pb-8 max-w-7xl w-full mx-auto">
         {list.length > 0 && (
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 mb-8">
           {/* Total Value */}
           <div className="bg-gray-900 border border-gray-800 rounded-xl px-5 py-4">
             <p className="text-xs text-gray-500 uppercase tracking-wider mb-1">
@@ -504,6 +540,25 @@ export default function PortfolioTab({
               <div className="h-7 w-28 rounded bg-gray-800 animate-pulse mt-1" />
             ) : (
               <p className="text-xl font-bold">{fmtNis(totalNis)}</p>
+            )}
+          </div>
+
+          {/* Today's Change */}
+          <div className="bg-gray-900 border border-gray-800 rounded-xl px-5 py-4">
+            <p className="text-xs text-gray-500 uppercase tracking-wider mb-1">Today's Change</p>
+            {pricesLoading ? (
+              <div className="h-7 w-28 rounded bg-gray-800 animate-pulse mt-1" />
+            ) : displayDailyChangeNis == null ? (
+              <p className="text-xl font-bold text-gray-600">—</p>
+            ) : (
+              <div className="space-y-0.5">
+                <p className={`text-xl font-bold ${displayDailyChangeNis > 0.01 ? 'text-green-400' : displayDailyChangeNis < -0.01 ? 'text-red-400' : 'text-gray-400'}`}>
+                  {displayDailyChangeNis > 0 ? '+' : ''}{fmtNis(displayDailyChangeNis)}
+                </p>
+                <p className={`text-xs ${displayDailyChangePct && displayDailyChangePct > 0.5 ? 'text-green-400' : displayDailyChangePct && displayDailyChangePct < -0.5 ? 'text-red-400' : 'text-gray-400'}`}>
+                  {displayDailyChangePct ? `${displayDailyChangePct > 0 ? '+' : ''}${displayDailyChangePct.toFixed(1)}%` : '—'}
+                </p>
+              </div>
             )}
           </div>
 

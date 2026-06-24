@@ -258,6 +258,7 @@ export default function DrillDownPanel({ holding, watchlistTicker, priceEntry, o
         researchData = await fetchResearch(ticker)
       }
 
+      console.log('[DrillDownPanel] research loaded:', researchData)
       setResearch(researchData)
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to load research data.')
@@ -471,11 +472,20 @@ export default function DrillDownPanel({ holding, watchlistTicker, priceEntry, o
                     <div className="text-sm text-gray-300 mt-3 space-y-1.5">
                       <p>
                         Analyst target: {ccySym}{fmtNum(research.target_price_mean)}
-                        {research.target_price_low != null && research.target_price_high != null && (
+                        {(research.target_price_low != null || research.target_price_high != null) && (
                           <span className="text-gray-500 text-xs ml-1">
-                            (range {ccySym}{fmtNum(research.target_price_low)}–{ccySym}{fmtNum(research.target_price_high)}
-                            {research.target_price_median != null && (
-                              <span>, median {ccySym}{fmtNum(research.target_price_median)}</span>
+                            (
+                            {research.target_price_low != null && research.target_price_high != null ? (
+                              <>
+                                low {ccySym}{fmtNum(research.target_price_low)} · high {ccySym}{fmtNum(research.target_price_high)}
+                                {research.target_price_median != null && (
+                                  <>, median {ccySym}{fmtNum(research.target_price_median)}</>
+                                )}
+                              </>
+                            ) : research.target_price_low != null ? (
+                              <>low {ccySym}{fmtNum(research.target_price_low)}</>
+                            ) : (
+                              <>high {ccySym}{fmtNum(research.target_price_high)}</>
                             )}
                             )
                           </span>
