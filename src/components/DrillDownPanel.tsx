@@ -483,9 +483,6 @@ export default function DrillDownPanel({ holding, watchlistTicker, priceEntry, o
                             {research.target_price_low != null && research.target_price_high != null ? (
                               <>
                                 low {ccySym}{fmtNum(research.target_price_low)} · high {ccySym}{fmtNum(research.target_price_high)}
-                                {research.target_price_median != null && (
-                                  <>, median {ccySym}{fmtNum(research.target_price_median)}</>
-                                )}
                               </>
                             ) : research.target_price_low != null ? (
                               <>low {ccySym}{fmtNum(research.target_price_low)}</>
