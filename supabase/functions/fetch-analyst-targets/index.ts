@@ -361,7 +361,6 @@ Deno.serve(async (req) => {
                 target_price_mean: targets.mean ?? null,
                 target_price_low: targets.low ?? null,
                 target_price_high: targets.high ?? null,
-                target_price_median: targets.median ?? null,
                 fetched_at: new Date().toISOString(),
               },
               { onConflict: 'ticker' }
