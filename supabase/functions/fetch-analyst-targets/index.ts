@@ -3,9 +3,147 @@ import { corsHeaders } from '../_shared/cors.ts'
 import { isUserPremium } from '../_shared/tier.ts'
 
 const RATE_LIMIT_MS = 1000
+const YAHOO_UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15'
+const ETF_TYPES = new Set(['ETP', 'ETN', 'ETF', 'Mutual Fund'])
+const ETF_TICKERS = new Set(['TQQQ', 'IBIT', 'GBTC', 'SHLD', 'URA', 'SLV', 'RSP', 'QQQ', 'SSO'])
+
+interface TargetPrice {
+  mean?: number | null
+  low?: number | null
+  high?: number | null
+  median?: number | null
+  source?: string
+  error?: string
+}
+
+// Fetch analyst targets from Yahoo quoteSummary endpoint
+async function fetchYahooTargets(ticker: string): Promise<TargetPrice> {
+  try {
+    const url = `https://query2.finance.yahoo.com/v10/finance/quoteSummary/${ticker}?modules=financialData`
+    const res = await fetch(url, {
+      headers: { 'User-Agent': YAHOO_UA },
+    })
+
+    if (!res.ok) {
+      console.log(`[fetch-analyst-targets] Yahoo HTTP ${res.status} for ${ticker}`)
+      return { error: `HTTP ${res.status}` }
+    }
+
+    const data = await res.json()
+    const fd = data.quoteSummary?.result?.[0]?.financialData
+
+    if (!fd) {
+      console.log(`[fetch-analyst-targets] Yahoo no financialData for ${ticker}`)
+      return { error: 'no_data' }
+    }
+
+    return {
+      mean: fd.targetMeanPrice?.raw ?? null,
+      low: fd.targetLowPrice?.raw ?? null,
+      high: fd.targetHighPrice?.raw ?? null,
+      median: fd.targetMedianPrice?.raw ?? null,
+      source: 'yahoo',
+    }
+  } catch (err) {
+    console.warn(`[fetch-analyst-targets] Yahoo error on ${ticker}:`, err)
+    return { error: String(err) }
+  }
+}
+
+// Fetch analyst target from Alpha Vantage OVERVIEW
+async function fetchAlphaVantageTarget(ticker: string): Promise<TargetPrice> {
+  const alphaApiKey = Deno.env.get('ALPHA_VANTAGE_API_KEY')
+  if (!alphaApiKey) {
+    return { error: 'no_api_key' }
+  }
+
+  try {
+    const url = `https://www.alphavantage.co/query?function=OVERVIEW&symbol=${ticker}&apikey=${alphaApiKey}`
+    const res = await fetch(url)
+    const data = await res.json()
+
+    if (data.Information) {
+      if (data.Information.includes('rate limit') || data.Information.includes('premium')) {
+        console.log(`[fetch-analyst-targets] Alpha Vantage rate limit on ${ticker}`)
+        return { error: 'rate_limit' }
+      }
+    }
+
+    const targetPrice = data.AnalystTargetPrice ? parseFloat(data.AnalystTargetPrice) : null
+
+    if (targetPrice === null) {
+      console.log(`[fetch-analyst-targets] Alpha Vantage no target for ${ticker}`)
+      return { error: 'no_data' }
+    }
+
+    return {
+      mean: targetPrice,
+      source: 'alpha_vantage',
+    }
+  } catch (err) {
+    console.warn(`[fetch-analyst-targets] Alpha Vantage error on ${ticker}:`, err)
+    return { error: String(err) }
+  }
+}
+
+// Detect if ticker is ETF using cached industry and Finnhub type
+async function isEtf(
+  ticker: string,
+  supabaseAdmin: any,
+  cachedRow: any
+): Promise<{ skip: boolean; reason?: string }> {
+  // Check hardcoded ETF list first
+  if (ETF_TICKERS.has(ticker)) {
+    return { skip: true, reason: 'hardcoded_etf' }
+  }
+
+  // Check if industry is cached (populated by fetch-research)
+  if (cachedRow?.industry === null || cachedRow?.industry === undefined) {
+    console.log(`[fetch-analyst-targets] ${ticker}: no cached industry, fetching Finnhub profile2`)
+
+    // Fetch Finnhub profile to detect ETF
+    const finnhubKey = Deno.env.get('FINNHUB_API_KEY')
+    if (!finnhubKey) {
+      console.log(`[fetch-analyst-targets] ${ticker}: no FINNHUB_API_KEY, skipping ETF check`)
+      return { skip: false }
+    }
+
+    try {
+      const res = await fetch(
+        `https://finnhub.io/api/v1/stock/profile2?symbol=${ticker}&token=${finnhubKey}`
+      )
+      const profile = await res.json()
+
+      if (ETF_TYPES.has(profile.type)) {
+        console.log(`[fetch-analyst-targets] ${ticker}: detected ETF type=${profile.type}`)
+        return { skip: true, reason: 'ETF' }
+      }
+
+      // Cache the type in industry field if available
+      if (profile.industry) {
+        await supabaseAdmin
+          .from('ticker_research_cache')
+          .upsert(
+            { ticker, industry: profile.industry, fetched_at: new Date().toISOString() },
+            { onConflict: 'ticker' }
+          )
+          .catch((err: any) =>
+            console.warn(`[fetch-analyst-targets] Failed to cache industry for ${ticker}:`, err)
+          )
+      }
+
+      return { skip: false }
+    } catch (err) {
+      console.warn(`[fetch-analyst-targets] Finnhub profile2 error on ${ticker}:`, err)
+      // Unknown — assume not ETF to try fetching
+      return { skip: false }
+    }
+  }
+
+  return { skip: false }
+}
 
 Deno.serve(async (req) => {
-  // Handle CORS preflight
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
   }
@@ -72,6 +210,7 @@ Deno.serve(async (req) => {
       return new Response(
         JSON.stringify({
           fetched: 0,
+          skipped_etf: 0,
           skipped_cached: 0,
           errored: 0,
           tickers_updated: [],
@@ -84,7 +223,6 @@ Deno.serve(async (req) => {
     }
 
     // 3. Find portfolios for Premium users
-    console.log('[fetch-analyst-targets] Fetching portfolios...')
     const { data: portfolios, error: portfoliosError } = await supabaseAdmin
       .from('portfolios')
       .select('id')
@@ -99,6 +237,7 @@ Deno.serve(async (req) => {
       return new Response(
         JSON.stringify({
           fetched: 0,
+          skipped_etf: 0,
           skipped_cached: 0,
           errored: 0,
           tickers_updated: [],
@@ -111,7 +250,6 @@ Deno.serve(async (req) => {
     }
 
     // 4. Find USD holdings (skip .TA and IL-*)
-    console.log('[fetch-analyst-targets] Fetching holdings...')
     const { data: holdings, error: holdingsError } = await supabaseAdmin
       .from('holdings')
       .select('ticker')
@@ -128,83 +266,123 @@ Deno.serve(async (req) => {
 
     console.log(`[fetch-analyst-targets] Found ${tickers.length} unique USD tickers`)
 
-    // 5. Filter out recently cached (last 7 days)
-    const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()
-
-    const { data: cachedRows, error: cacheError } = await supabaseAdmin
+    // 5. Load current cache and identify retryable tickers
+    const { data: cacheRows, error: cacheError } = await supabaseAdmin
       .from('ticker_research_cache')
-      .select('ticker, fetched_at')
+      .select('ticker, target_price_mean, target_skip_reason, fetched_at')
       .in('ticker', tickers)
-      .gte('fetched_at', sevenDaysAgo)
 
     if (cacheError) {
-      console.warn(`[fetch-analyst-targets] Cache check error: ${cacheError.message}`)
-    } else {
-      const recentlyFetched = new Set(cachedRows?.map((c: any) => c.ticker) ?? [])
-      tickers = tickers.filter((t) => !recentlyFetched.has(t))
+      console.warn(`[fetch-analyst-targets] Cache load error: ${cacheError.message}`)
     }
 
-    const skippedCached = (cachedRows?.length ?? 0)
-    console.log(`[fetch-analyst-targets] ${tickers.length} tickers need fresh fetch, ${skippedCached} recently cached`)
+    const cacheMap = new Map(
+      cacheRows?.map((c: any) => [c.ticker, c]) ?? []
+    )
 
-    // 6. Fetch analyst targets from Alpha Vantage
-    const alphaApiKey = Deno.env.get('ALPHA_VANTAGE_API_KEY')
-    if (!alphaApiKey) {
-      throw new Error('ALPHA_VANTAGE_API_KEY not configured')
-    }
-
+    let skippedEtf = 0
+    let skippedCached = 0
     let fetched = 0
     let errored = 0
     const tickersUpdated: string[] = []
+    const sourceLog: Record<string, string> = {}
 
+    // 6. Fetch analyst targets for each ticker
     for (const ticker of tickers) {
-      try {
-        const url = `https://www.alphavantage.co/query?function=OVERVIEW&symbol=${ticker}&apikey=${alphaApiKey}`
-        const res = await fetch(url)
-        const data = await res.json()
+      const cached = cacheMap.get(ticker)
 
-        // Check for rate limit response
-        if (data.Information) {
-          if (data.Information.includes('rate limit') || data.Information.includes('premium')) {
-            console.warn(`[fetch-analyst-targets] Rate limited on ${ticker}: ${data.Information}`)
-            errored++
-            // Don't update cache — stay stale and retry tomorrow
-            await new Promise((resolve) => setTimeout(resolve, RATE_LIMIT_MS))
-            continue
-          }
-        }
+      // Skip if permanently marked (ETF or no coverage)
+      if (cached?.target_skip_reason) {
+        console.log(`[fetch-analyst-targets] Skipped ${ticker}: target_skip_reason=${cached.target_skip_reason}`)
+        skippedEtf++
+        continue
+      }
 
-        // Extract analyst target price (mean only, no high/low from free tier)
-        const targetPrice = data.AnalystTargetPrice ? parseFloat(data.AnalystTargetPrice) : null
+      // Skip if target_price_mean exists and is fresh (7 days)
+      if (
+        cached?.target_price_mean !== null &&
+        cached?.fetched_at &&
+        new Date(cached.fetched_at).getTime() > Date.now() - 7 * 24 * 60 * 60 * 1000
+      ) {
+        console.log(`[fetch-analyst-targets] Skipped ${ticker}: fresh cache`)
+        skippedCached++
+        continue
+      }
 
-        // Upsert into cache
-        const { error: upsertError } = await supabaseAdmin
+      // Detect if ETF
+      const { skip, reason } = await isEtf(ticker, supabaseAdmin, cached)
+      if (skip) {
+        console.log(`[fetch-analyst-targets] Skipped ${ticker}: ${reason}`)
+        // Mark permanently to avoid retrying
+        await supabaseAdmin
           .from('ticker_research_cache')
           .upsert(
             {
               ticker,
-              target_price_mean: targetPrice,
+              target_skip_reason: 'ETF',
               fetched_at: new Date().toISOString(),
             },
-            {
-              onConflict: 'ticker',
-            }
+            { onConflict: 'ticker' }
           )
+          .catch((err: any) =>
+            console.warn(`[fetch-analyst-targets] Failed to mark ETF for ${ticker}:`, err)
+          )
+        skippedEtf++
+        continue
+      }
 
-        if (upsertError) {
-          console.error(`[fetch-analyst-targets] Upsert error for ${ticker}: ${upsertError.message}`)
-          errored++
-        } else {
+      // Try Yahoo first
+      let targets = await fetchYahooTargets(ticker)
+
+      // Fall back to Alpha Vantage if Yahoo failed and ticker is not ETF
+      if (targets.error && !targets.source) {
+        console.log(
+          `[fetch-analyst-targets] Yahoo failed for ${ticker} (${targets.error}), trying Alpha Vantage`
+        )
+        targets = await fetchAlphaVantageTarget(ticker)
+      }
+
+      // Skip rate-limited calls
+      if (targets.error === 'rate_limit') {
+        console.log(`[fetch-analyst-targets] Rate limited on ${ticker}, skipping`)
+        errored++
+        await new Promise((resolve) => setTimeout(resolve, RATE_LIMIT_MS))
+        continue
+      }
+
+      // Upsert into cache
+      if (targets.mean !== null || targets.low !== null || targets.high !== null) {
+        try {
+          await supabaseAdmin
+            .from('ticker_research_cache')
+            .upsert(
+              {
+                ticker,
+                target_price_mean: targets.mean ?? null,
+                target_price_low: targets.low ?? null,
+                target_price_high: targets.high ?? null,
+                target_price_median: targets.median ?? null,
+                fetched_at: new Date().toISOString(),
+              },
+              { onConflict: 'ticker' }
+            )
+
           fetched++
           tickersUpdated.push(ticker)
-          console.log(`[fetch-analyst-targets] Updated ${ticker}: target=$${targetPrice}`)
+          sourceLog[ticker] = targets.source ?? 'unknown'
+          console.log(
+            `[fetch-analyst-targets] Updated ${ticker}: source=${targets.source} mean=$${targets.mean} low=$${targets.low} high=$${targets.high}`
+          )
+        } catch (err) {
+          console.error(`[fetch-analyst-targets] Upsert error for ${ticker}:`, err)
+          errored++
         }
-      } catch (err) {
-        console.error(`[fetch-analyst-targets] Network error on ${ticker}:`, err)
+      } else {
+        console.log(`[fetch-analyst-targets] No target data for ${ticker} from ${targets.source}`)
         errored++
       }
 
-      // Respect rate limit (1 second between calls)
+      // Respect rate limit between calls
       if (ticker !== tickers[tickers.length - 1]) {
         await new Promise((resolve) => setTimeout(resolve, RATE_LIMIT_MS))
       }
@@ -212,9 +390,11 @@ Deno.serve(async (req) => {
 
     const result = {
       fetched,
+      skipped_etf: skippedEtf,
       skipped_cached: skippedCached,
       errored,
       tickers_updated: tickersUpdated,
+      sources: sourceLog,
     }
 
     console.log('[fetch-analyst-targets] Batch complete:', result)
