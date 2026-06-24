@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import type { Session } from '@supabase/supabase-js'
 import { RefreshCw, Upload, LogOut } from 'lucide-react'
 import { supabase } from '../lib/supabase'
+import { useUserProfile } from '../lib/useUserProfile'
 import { refreshPrices, fetchUsdToNis, type PriceMap, type MarketData } from '../lib/prices'
 import TickerBar from '../components/TickerBar'
 import TabBar from '../components/TabBar'
@@ -11,6 +12,7 @@ import SignalsTab from '../components/SignalsTab'
 import WatchlistTab from '../components/WatchlistTab'
 import AskClaudeTab from '../components/AskClaudeTab'
 import SettingsTab from '../components/SettingsTab'
+import PremiumBadge from '../components/PremiumBadge'
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -133,6 +135,8 @@ export default function MainPage({
 
   const [sortState, setSortState] = useState(() => readSortState())
   const [activeTab, setActiveTab] = useState<'portfolio' | 'rsu' | 'signals' | 'watchlist' | 'ask-claude' | 'settings'>('portfolio')
+
+  const { isPremium } = useUserProfile()
 
   const REFRESH_MS = 60 * 60 * 1000 // 60 minutes
 
@@ -396,6 +400,7 @@ export default function MainPage({
                   : 'Refreshing…'}
               </span>
             )}
+            {isPremium && <PremiumBadge size="sm" showText={false} />}
             <div className="flex items-center gap-3">
               {holdings !== null && holdings.length > 0 && (
                 <button
