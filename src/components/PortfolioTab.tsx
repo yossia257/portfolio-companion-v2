@@ -1,5 +1,6 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { supabase } from '../lib/supabase'
+import { useUserProfile } from '../lib/useUserProfile'
 import type { PriceMap } from '../lib/prices'
 import DrillDownPanel from './DrillDownPanel'
 
@@ -229,6 +230,16 @@ export default function PortfolioTab({
   })
   const [addErrors, setAddErrors] = useState<Record<string, string>>({})
   const [addingHolding, setAddingHolding] = useState(false)
+
+  const { isPremium } = useUserProfile()
+
+  // Fetch analyst targets in background on mount for Premium users
+  useEffect(() => {
+    if (!isPremium) return
+    supabase.functions.invoke('fetch-analyst-targets').catch((err) => {
+      console.warn('[PortfolioTab] fetch-analyst-targets background call failed:', err)
+    })
+  }, [isPremium])
 
   const list = holdings ?? []
 
