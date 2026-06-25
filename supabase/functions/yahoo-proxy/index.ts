@@ -103,8 +103,9 @@ Deno.serve(async (req) => {
       const outcomes = await Promise.allSettled(
         stale.map(async (ticker) => {
           const isTA = ticker.toUpperCase().endsWith('.TA')
-          // interval=1d&range=5d gives us meta.preMarketPrice alongside regular market data
-          const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(ticker)}?interval=1d&range=5d`
+          // includePrePost=true required to get preMarketPrice, preMarketChange, marketState
+          // interval=1d&range=5d for daily candles, includePrePost for pre/post-market metadata
+          const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(ticker)}?interval=1d&range=5d&includePrePost=true`
 
           const res = await fetch(url, { headers: { 'User-Agent': YAHOO_UA } })
 
@@ -118,6 +119,19 @@ Deno.serve(async (req) => {
 
           const meta = data.chart.result[0].meta
           const result = data.chart.result[0]
+
+          // Debug logging: dump raw meta fields to diagnose pre-market data
+          console.error(
+            `[yahoo-proxy] ${ticker} meta:`,
+            JSON.stringify({
+              regularMarketPrice: meta?.regularMarketPrice,
+              preMarketPrice: meta?.preMarketPrice,
+              preMarketChange: meta?.preMarketChange,
+              preMarketChangePercent: meta?.preMarketChangePercent,
+              marketState: meta?.marketState,
+              keys: Object.keys(meta ?? {}),
+            })
+          )
 
           const rawCurrent: number  = meta.regularMarketPrice
           if (!rawCurrent) throw new Error(`regularMarketPrice missing for ${ticker}`)

@@ -743,7 +743,7 @@ export default function PortfolioTab({
                   const prePrice = hasLive ? ((entry as PriceEntry).pre_market_price ?? null) : null
                   const preChangePct = hasLive ? ((entry as PriceEntry).pre_market_change_pct ?? null) : null
                   const marketState = hasLive ? ((entry as PriceEntry).market_state ?? null) : null
-                  const showPreMarketPrice = isPremium && isUsd && marketState === 'PRE' && prePrice != null && preChangePct != null
+                  const showPreMarketPrice = isPremium && isUsd && (marketState === 'PRE' || marketState === 'PREPRE') && prePrice != null && preChangePct != null
                   const total = nisValue(h)
                   const pnl = pnlPct(h)
                   const waiting = pricesLoading && entry == null
