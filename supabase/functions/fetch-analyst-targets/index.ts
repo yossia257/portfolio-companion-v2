@@ -141,15 +141,16 @@ async function isEtf(
 
       // Cache the type in industry field if available
       if (profile.industry) {
-        await supabaseAdmin
-          .from('ticker_research_cache')
-          .upsert(
-            { ticker, industry: profile.industry, fetched_at: new Date().toISOString() },
-            { onConflict: 'ticker' }
-          )
-          .catch((err: any) =>
-            console.warn(`[fetch-analyst-targets] Failed to cache industry for ${ticker}:`, err)
-          )
+        try {
+          await supabaseAdmin
+            .from('ticker_research_cache')
+            .upsert(
+              { ticker, industry: profile.industry, fetched_at: new Date().toISOString() },
+              { onConflict: 'ticker' }
+            )
+        } catch (err) {
+          console.warn(`[fetch-analyst-targets] Failed to cache industry for ${ticker}:`, err)
+        }
       }
 
       return { skip: false }
@@ -378,19 +379,20 @@ Deno.serve(async (req) => {
       if (skip) {
         console.log(`[fetch-analyst-targets] Skipped ${ticker}: ${reason}`)
         // Mark permanently to avoid retrying
-        await supabaseAdmin
-          .from('ticker_research_cache')
-          .upsert(
-            {
-              ticker,
-              target_skip_reason: 'ETF',
-              fetched_at: new Date().toISOString(),
-            },
-            { onConflict: 'ticker' }
-          )
-          .catch((err: any) =>
-            console.warn(`[fetch-analyst-targets] Failed to mark ETF for ${ticker}:`, err)
-          )
+        try {
+          await supabaseAdmin
+            .from('ticker_research_cache')
+            .upsert(
+              {
+                ticker,
+                target_skip_reason: 'ETF',
+                fetched_at: new Date().toISOString(),
+              },
+              { onConflict: 'ticker' }
+            )
+        } catch (err) {
+          console.warn(`[fetch-analyst-targets] Failed to mark ETF for ${ticker}:`, err)
+        }
         skippedEtf++
         continue
       }
@@ -417,27 +419,29 @@ Deno.serve(async (req) => {
       // Upsert into cache
       if (targets.mean !== null || targets.low !== null || targets.high !== null) {
         try {
-          await supabaseAdmin
+          const { error } = await supabaseAdmin
             .from('ticker_research_cache')
-            .upsert(
-              {
-                ticker,
-                target_price_mean: targets.mean ?? null,
-                target_price_low: targets.low ?? null,
-                target_price_high: targets.high ?? null,
-                fetched_at: new Date().toISOString(),
-              },
-              { onConflict: 'ticker' }
-            )
+            .upsert({
+              ticker,
+              target_price_mean: targets.mean ?? null,
+              target_price_high: targets.high ?? null,
+              target_price_low: targets.low ?? null,
+              fetched_at: new Date().toISOString(),
+            })
 
-          fetched++
-          tickersUpdated.push(ticker)
-          sourceLog[ticker] = targets.source ?? 'unknown'
-          console.log(
-            `[fetch-analyst-targets] Updated ${ticker}: source=${targets.source} mean=$${targets.mean} low=$${targets.low} high=$${targets.high}`
-          )
+          if (error) {
+            console.error(`[fetch-analyst-targets] Upsert error for ${ticker}:`, error)
+            errored++
+          } else {
+            fetched++
+            tickersUpdated.push(ticker)
+            sourceLog[ticker] = targets.source ?? 'unknown'
+            console.error(
+              `[fetch-analyst-targets] Updated ${ticker}: source=${targets.source} mean=$${targets.mean ?? 'null'} high=$${targets.high ?? 'null'} low=$${targets.low ?? 'null'}`
+            )
+          }
         } catch (err) {
-          console.error(`[fetch-analyst-targets] Upsert error for ${ticker}:`, err)
+          console.error(`[fetch-analyst-targets] Exception upserting ${ticker}:`, err)
           errored++
         }
       } else {
