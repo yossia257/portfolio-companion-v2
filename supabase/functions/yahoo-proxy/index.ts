@@ -120,10 +120,6 @@ Deno.serve(async (req) => {
           const meta = data.chart.result[0].meta
           const result = data.chart.result[0]
 
-          // Cache the prior regular close from the daily fetch — this is the ground truth
-          // for pre-market % calculations (represents yesterday's regular session close)
-          const priorRegularClose = meta.chartPreviousClose
-
           const rawCurrent: number  = meta.regularMarketPrice
           if (!rawCurrent) throw new Error(`regularMarketPrice missing for ${ticker}`)
 
@@ -140,6 +136,15 @@ Deno.serve(async (req) => {
           const quoteArray = indicators?.quote
           const quote = Array.isArray(quoteArray) ? quoteArray[0] : null
           const closes = quote?.close
+
+          // Cache the prior regular close from actual daily candles (or fallback to meta.previousClose)
+          // This is the ground truth for pre-market % calculations (represents yesterday's regular session close)
+          let priorRegularClose: number | null = null
+          if (Array.isArray(closes) && closes.length >= 2) {
+            priorRegularClose = closes[closes.length - 2]
+          } else if (meta.previousClose != null) {
+            priorRegularClose = meta.previousClose
+          }
 
           if (Array.isArray(closes) && closes.length >= 2) {
             // Use actual candle data: today vs yesterday
