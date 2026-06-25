@@ -504,6 +504,46 @@ export default function DrillDownPanel({ holding, watchlistTicker, priceEntry, o
             })()}
           </section>
 
+          {/* ── Pre-market (Premium USD tickers during PRE state) ── */}
+          {(() => {
+            if ('error' in (priceEntry ?? {})) return null
+
+            const entry = priceEntry as PriceEntry | undefined
+            const showPreMarket =
+              holding?.currency?.toUpperCase() === 'USD' &&
+              entry?.market_state === 'PRE' &&
+              entry?.pre_market_price != null &&
+              entry?.pre_market_change_pct != null
+
+            if (!showPreMarket) return null
+
+            const prePrice = entry!.pre_market_price!
+            const preChangePct = entry!.pre_market_change_pct!
+            const preColor = preChangePct >= 0 ? 'text-green-400' : 'text-red-400'
+
+            return (
+              <section className="px-5 py-4 border-b border-gray-800 bg-amber-950/20 border-l-2 border-l-amber-600">
+                <div className="flex items-center gap-2 mb-3">
+                  <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-amber-600/40 border border-amber-500/50 text-xs font-bold text-amber-300">
+                    PRE-MARKET
+                  </span>
+                  <span className="text-xs text-gray-500">US pre-market trading</span>
+                </div>
+                <div className="space-y-2 text-sm text-gray-300">
+                  <p>
+                    Price: <span className="font-mono text-white">${prePrice.toFixed(2)}</span>
+                  </p>
+                  <p>
+                    vs. yesterday close:{' '}
+                    <span className={`font-mono font-semibold ${preColor}`}>
+                      {preChangePct >= 0 ? '+' : ''}{preChangePct.toFixed(2)}%
+                    </span>
+                  </p>
+                </div>
+              </section>
+            )
+          })()}
+
           {/* ── Technical Indicators ── (fast) */}
           <section className="px-5 py-4 border-b border-gray-800">
             <h3 className="text-xs uppercase tracking-wider text-gray-500 mb-3">Technical Indicators</h3>

@@ -794,35 +794,23 @@ export default function PortfolioTab({
                       </td>
 
                       {/* Current Price */}
-                      <td className="px-4 py-3 text-right tabular-nums">
+                      <td className="px-4 py-3 text-right">
                         {waiting ? (
                           <Pulse />
                         ) : cur != null ? (
-                          <div className="flex flex-col gap-1">
-                            {/* On mobile: show only PRE price if available, otherwise regular */}
-                            <span className={`sm:flex text-white ${showPreMarketPrice ? 'hidden' : 'flex'}`}>
-                              {ccySym}{fmtPrice(cur)}
-                            </span>
-                            {/* On desktop: show regular price, with PRE badge + price below if available */}
-                            {showPreMarketPrice && (
-                              <div className="flex items-center gap-1 sm:flex hidden">
-                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-900/40 border border-amber-700/50 text-xs font-semibold text-amber-300">
-                                  PRE
-                                </span>
-                                <span className="text-xs text-amber-300">
-                                  {ccySym}{fmtPrice(prePrice!)} {preChangePct! >= 0 ? '+' : ''}{preChangePct!.toFixed(1)}%
-                                </span>
-                              </div>
-                            )}
-                            {/* On mobile: show PRE badge + price if available */}
-                            {showPreMarketPrice && (
-                              <div className="sm:hidden flex items-center gap-1">
-                                <span className="inline-flex items-center gap-0.5 px-1.5 py-0 rounded text-xs font-semibold text-amber-300 bg-amber-900/40 border border-amber-700/50">
-                                  PRE
-                                </span>
-                                <span className="text-amber-300 text-sm">
-                                  {ccySym}{fmtPrice(prePrice!)}
-                                </span>
+                          <div className="font-mono">
+                            {/* Regular price (always shown, always prominent) */}
+                            <div className="text-white">{ccySym}{fmtPrice(cur)}</div>
+                            {/* Pre-market line (below regular price, smaller) */}
+                            {showPreMarketPrice && prePrice != null && (
+                              <div className="text-xs text-amber-300 flex items-center gap-1 mt-0.5">
+                                <span className="px-1 py-0.5 rounded bg-amber-600/30 font-bold text-[10px]">PRE</span>
+                                <span>{ccySym}{fmtPrice(prePrice)}</span>
+                                {preChangePct != null && (
+                                  <span className={preChangePct >= 0 ? 'text-green-400' : 'text-red-400'}>
+                                    {preChangePct >= 0 ? '+' : ''}{preChangePct.toFixed(2)}%
+                                  </span>
+                                )}
                               </div>
                             )}
                           </div>
