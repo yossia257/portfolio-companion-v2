@@ -227,14 +227,16 @@ Deno.serve(async (req) => {
                     }
 
                     // Diagnostic: verify the calculation
-                    console.log(
+                    console.error(
                       `[yahoo-proxy] ${ticker} pre-market math:`,
                       JSON.stringify({
                         preMarketPrice: pre_market_price,
                         priorRegularClose: priorRegularClose,
-                        intradayChartPrevClose: meta.chartPreviousClose,
-                        changeAbs: pre_market_price - (priorRegularClose ?? 0),
-                        changePct: pre_market_change_pct,
+                        diff: pre_market_price - (priorRegularClose ?? 0),
+                        pct: pre_market_change_pct,
+                        expectedSign: pre_market_price != null && priorRegularClose != null
+                          ? (pre_market_price > priorRegularClose ? 'positive' : pre_market_price < priorRegularClose ? 'negative' : 'zero')
+                          : 'n/a',
                       })
                     )
                     break

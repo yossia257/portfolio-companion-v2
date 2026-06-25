@@ -527,7 +527,7 @@ export default function DrillDownPanel({ holding, watchlistTicker, priceEntry, o
                 <div className="font-mono text-white/90 mb-2">
                   ${prePrice.toFixed(2)}{' '}
                   <span className={preColor}>
-                    {preChangePct >= 0 ? '+' : ''}{preChangePct.toFixed(2)}%
+                    {preChangePct >= 0 ? '+' : ''}{preChangePct.toFixed(1)}%
                   </span>
                 </div>
                 <p className="text-xs text-gray-400">vs. prior close</p>

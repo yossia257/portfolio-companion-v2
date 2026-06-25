@@ -673,9 +673,14 @@ export default function PortfolioTab({
                     Daily % {sortState.column === 'daily_pct' && (sortState.direction === 'asc' ? '▲' : '▼')}
                   </th>
                   {showPreMarket && (
-                    <th className="px-4 py-3 text-right font-medium text-gray-400">
-                      Pre
-                    </th>
+                    <>
+                      <th className="px-4 py-3 text-right font-medium text-gray-400">
+                        Pre $
+                      </th>
+                      <th className="px-4 py-3 text-right font-medium text-gray-400">
+                        Pre %
+                      </th>
+                    </>
                   )}
                   <th
                     className="px-4 py-3 text-right font-medium cursor-pointer hover:text-white transition-colors whitespace-nowrap"
@@ -805,16 +810,22 @@ export default function PortfolioTab({
                         )}
                       </td>
 
-                      {/* Pre (consolidated: price + % change) */}
+                      {/* Pre $ column */}
+                      {showPreMarket && (
+                        <td className="px-4 py-3 text-right tabular-nums text-white/90">
+                          {prePrice != null ? (
+                            <>{ccySym}{fmtPrice(prePrice)}</>
+                          ) : (
+                            <span className="text-gray-500">—</span>
+                          )}
+                        </td>
+                      )}
+
+                      {/* Pre % column */}
                       {showPreMarket && (
                         <td className="px-4 py-3 text-right tabular-nums">
-                          {prePrice != null && preChangePct != null ? (
-                            <span className="text-white/90">
-                              {ccySym}{fmtPrice(prePrice)}{' '}
-                              <span className={pnlColor(preChangePct)}>
-                                {preChangePct >= 0 ? '+' : ''}{fmtPct(preChangePct)}
-                              </span>
-                            </span>
+                          {preChangePct != null ? (
+                            <span className={pnlColor(preChangePct)}>{fmtPct(preChangePct)}</span>
                           ) : (
                             <span className="text-gray-500">—</span>
                           )}
