@@ -176,31 +176,59 @@ Deno.serve(async (req) => {
             }
           }
 
-          // Pre-market enrichment — present when marketState === 'PRE'.
-          // preMarketPrice for .TA would also need Agorot conversion, but
-          // TASE doesn't have US-style pre-market sessions, so this is
-          // effectively USD-only in practice.
-          const rawPreMarket: number | undefined = meta.preMarketPrice
-          const pre_market_price = rawPreMarket != null
-            ? rawPreMarket / divisor
-            : null
+          // Part 1: Derive market state from currentTradingPeriod (not from meta field which doesn't exist)
+          const now = Math.floor(Date.now() / 1000)
+          const periods = meta.currentTradingPeriod ?? {}
+          let market_state: 'PRE' | 'REGULAR' | 'POST' | 'CLOSED' = 'CLOSED'
 
-          // Pre-market change relative to yesterday's close (use candle close, not chartPreviousClose).
-          let pre_market_change_pct: number | null = null
-          if (rawPreMarket != null && Array.isArray(closes) && closes.length >= 2) {
-            const yesterClose = closes[closes.length - 2]
-            if (yesterClose != null && yesterClose !== 0) {
-              pre_market_change_pct = ((rawPreMarket - yesterClose) / yesterClose) * 100
-            }
-          } else if (rawPreMarket != null && meta.previousClose != null && meta.previousClose !== 0) {
-            pre_market_change_pct = ((rawPreMarket - meta.previousClose) / meta.previousClose) * 100
+          if (periods.pre && now >= periods.pre.start && now < periods.pre.end) {
+            market_state = 'PRE'
+          } else if (periods.regular && now >= periods.regular.start && now < periods.regular.end) {
+            market_state = 'REGULAR'
+          } else if (periods.post && now >= periods.post.start && now < periods.post.end) {
+            market_state = 'POST'
           }
 
-          const market_state: string | null = meta.marketState ?? null
+          // Part 2: For PRE state, fetch intraday data to extract pre-market price
+          let pre_market_price: number | null = null
+          let pre_market_change_pct: number | null = null
+
+          if (market_state === 'PRE' && !isTA) {
+            // Only fetch intraday for USD tickers during pre-market (TASE has no pre-market)
+            try {
+              const intradayUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(ticker)}?interval=5m&range=1d&includePrePost=true`
+              const intradayRes = await fetch(intradayUrl, { headers: { 'User-Agent': YAHOO_UA } })
+              const intradayJson = await intradayRes.json()
+              const intradayResult = intradayJson?.chart?.result?.[0]
+
+              if (intradayResult) {
+                const timestamps: number[] = intradayResult?.timestamp ?? []
+                const intradayCloses: (number | null)[] = intradayResult?.indicators?.quote?.[0]?.close ?? []
+                const preStart = periods.pre?.start ?? 0
+                const preEnd = periods.pre?.end ?? 0
+
+                // Find most recent non-null close in pre-market window
+                for (let i = timestamps.length - 1; i >= 0; i--) {
+                  if (timestamps[i] >= preStart && timestamps[i] < preEnd && intradayCloses[i] != null) {
+                    pre_market_price = intradayCloses[i]!
+                    // Pre-market % change vs previous regular session close
+                    const prevClose = meta.chartPreviousClose ?? meta.previousClose
+                    if (prevClose != null && prevClose !== 0) {
+                      pre_market_change_pct = ((pre_market_price - prevClose) / prevClose) * 100
+                    }
+                    break
+                  }
+                }
+              }
+            } catch (err) {
+              console.warn(`[yahoo-proxy] Intraday fetch failed for ${ticker}:`, err)
+              // Continue without pre-market price if intraday fetch fails
+            }
+          }
 
           console.error(
             `[yahoo-proxy] ${ticker}: price=${price.toFixed(2)} daily=${daily_change_pct.toFixed(2)}%` +
-            ` preMarket=${pre_market_price?.toFixed(2) ?? 'n/a'} state=${market_state}`
+            ` preMarket=${pre_market_price?.toFixed(2) ?? 'n/a'} (${pre_market_change_pct?.toFixed(2) ?? 'n/a'}%) state=${market_state}`
           )
 
           return {
