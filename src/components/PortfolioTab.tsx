@@ -701,11 +701,22 @@ export default function PortfolioTab({
                   >
                     P&amp;L % {sortState.column === 'pnl_pct' && (sortState.direction === 'asc' ? '▲' : '▼')}
                   </th>
-                  <th
-                    className="px-4 py-3 text-left font-medium text-gray-400"
-                  >
-                    {isPremium ? 'Target / Upside' : 'Category'}
-                  </th>
+                  {isPremium ? (
+                    <>
+                      <th className="px-4 py-3 text-left font-medium text-gray-400">
+                        Target
+                      </th>
+                      <th className="px-4 py-3 text-right font-medium text-gray-400">
+                        Upside
+                      </th>
+                    </>
+                  ) : (
+                    <th
+                      className="px-4 py-3 text-left font-medium text-gray-400"
+                    >
+                      Category
+                    </th>
+                  )}
                   <th
                     className="px-4 py-3 text-right font-medium text-gray-400"
                   >
@@ -844,39 +855,61 @@ export default function PortfolioTab({
                         )}
                       </td>
 
-                      {/* Category / Target Upside */}
-                      <td className="px-4 py-3 text-left">
-                        {isPremium ? (
-                          (() => {
+                      {/* Target column (Premium only) */}
+                      {isPremium && (
+                        <td className="px-4 py-3 text-left font-mono text-gray-300">
+                          {(() => {
                             const researchData = research[h.ticker]
                             const target = researchData?.target_price_mean
                             const skipReason = researchData?.target_skip_reason
 
                             if (skipReason === 'ETF') {
-                              return <span className="text-gray-500 text-sm">ETF</span>
+                              return <span className="text-gray-500">—</span>
                             }
 
-                            if (target != null && cur != null) {
-                              const upside = ((target - cur) / cur) * 100
-                              const color = upside > 0 ? 'text-green-400' : upside < 0 ? 'text-red-400' : 'text-gray-400'
-                              return (
-                                <span className="text-gray-300">
-                                  ${target.toFixed(2)} <span className={`ml-1 font-semibold ${color}`}>[{upside > 0 ? '+' : ''}{upside.toFixed(1)}%]</span>
-                                </span>
-                              )
+                            if (target != null) {
+                              return <span>${target.toFixed(2)}</span>
                             }
 
                             return <span className="text-gray-600">—</span>
-                          })()
-                        ) : (
+                          })()}
+                        </td>
+                      )}
+
+                      {/* Upside column (Premium only) */}
+                      {isPremium && (
+                        <td className="px-4 py-3 text-right text-sm">
+                          {(() => {
+                            const researchData = research[h.ticker]
+                            const target = researchData?.target_price_mean
+                            const skipReason = researchData?.target_skip_reason
+
+                            if (skipReason === 'ETF' || target == null || cur == null || cur === 0) {
+                              return null
+                            }
+
+                            const upside = ((target - cur) / cur) * 100
+                            const color = upside > 0 ? 'text-green-400' : upside < 0 ? 'text-red-400' : 'text-gray-400'
+                            return (
+                              <span className={color}>
+                                {upside > 0 ? '+' : ''}{upside.toFixed(1)}%
+                              </span>
+                            )
+                          })()}
+                        </td>
+                      )}
+
+                      {/* Category column (Free users only) */}
+                      {!isPremium && (
+                        <td className="px-4 py-3 text-left">
                           <EditableCell
                             value={h.category}
                             type="category"
                             holdingId={h.id}
                             onSave={onHoldingUpdated}
                           />
-                        )}
-                      </td>
+                        </td>
+                      )}
 
                       {/* Delete action */}
                       <td className="px-4 py-3 text-right">

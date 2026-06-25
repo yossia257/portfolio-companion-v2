@@ -359,7 +359,12 @@ export default function WatchlistTab({ prices, pricesLoading, onRefreshPrices, r
                   <th className="px-4 py-3 text-left font-medium">Ticker</th>
                   <th className="px-4 py-3 text-right font-medium">Current Price</th>
                   <th className="px-4 py-3 text-right font-medium">Daily %</th>
-                  {isPremium && <th className="px-4 py-3 text-right font-medium">Target / Upside</th>}
+                  {isPremium && (
+                    <>
+                      <th className="px-4 py-3 text-left font-medium">Target</th>
+                      <th className="px-4 py-3 text-right font-medium">Upside</th>
+                    </>
+                  )}
                   <th className="px-4 py-3 text-left font-medium">Note</th>
                   <th className="px-4 py-3 text-left font-medium">Added</th>
                   <th className="px-4 py-3 text-left font-medium">Source</th>
@@ -411,7 +416,23 @@ export default function WatchlistTab({ prices, pricesLoading, onRefreshPrices, r
                         )}
                       </td>
 
-                      {/* Target / Upside (Premium only) */}
+                      {/* Target (Premium only) */}
+                      {isPremium && (
+                        <td className="px-4 py-3 text-left font-mono text-gray-300 text-sm">
+                          {(() => {
+                            const researchData = research[item.ticker]
+                            const target = researchData?.target_price_mean
+
+                            if (target != null) {
+                              return <span>${target.toFixed(2)}</span>
+                            }
+
+                            return <span className="text-gray-600">—</span>
+                          })()}
+                        </td>
+                      )}
+
+                      {/* Upside (Premium only) */}
                       {isPremium && (
                         <td className="px-4 py-3 text-right text-sm">
                           {(() => {
@@ -419,20 +440,13 @@ export default function WatchlistTab({ prices, pricesLoading, onRefreshPrices, r
                             const target = researchData?.target_price_mean
                             const cur = priceData?.price
 
-                            if (target != null && cur != null) {
+                            if (target != null && cur != null && cur > 0) {
                               const upside = ((target - cur) / cur) * 100
                               const color = upside > 0 ? 'text-green-400' : upside < 0 ? 'text-red-400' : 'text-gray-400'
-                              return (
-                                <div className="space-y-0.5">
-                                  <div className="text-gray-300">${target.toFixed(0)}</div>
-                                  <div className={`text-xs ${color}`}>
-                                    {upside > 0 ? '+' : ''}{upside.toFixed(0)}%
-                                  </div>
-                                </div>
-                              )
+                              return <span className={color}>{upside > 0 ? '+' : ''}{upside.toFixed(1)}%</span>
                             }
 
-                            return <span className="text-gray-600">—</span>
+                            return null
                           })()}
                         </td>
                       )}
