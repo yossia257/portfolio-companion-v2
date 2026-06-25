@@ -41,7 +41,7 @@ function fmtTime(d: Date): string {
 type SortCol =
   | 'ticker' | 'name' | 'qty' | 'buy_price'
   | 'cur_price' | 'daily_pct' | 'pre_price' | 'pre_pct'
-  | 'total_nis' | 'pnl_pct'
+  | 'total_nis' | 'pnl_pct' | 'target' | 'upside'
 type SortDir = 'asc' | 'desc'
 const SORT_LS_KEY = 'holdings_sort'
 
@@ -54,7 +54,7 @@ function readSortState(): { column: SortCol; direction: SortDir } {
   }
 }
 
-function getColumnValue(h: Holding, col: SortCol, prices: PriceMap, usdNis: number | null = null): number | string | null {
+function getColumnValue(h: Holding, col: SortCol, prices: PriceMap, usdNis: number | null = null, research: Record<string, any> = {}): number | string | null {
   switch (col) {
     case 'ticker': return h.ticker ?? null
     case 'name': return h.name ?? null
@@ -91,6 +91,18 @@ function getColumnValue(h: Holding, col: SortCol, prices: PriceMap, usdNis: numb
       const curPrice = (cur as any).price ?? 0
       if (buyPrice === 0) return null
       return ((curPrice - buyPrice) / buyPrice) * 100
+    }
+    case 'target': {
+      const researchData = research[h.ticker]
+      return researchData?.target_price_mean ?? null
+    }
+    case 'upside': {
+      const researchData = research[h.ticker]
+      const target = researchData?.target_price_mean
+      const entry = prices[h.ticker]
+      const cur = entry != null && !('error' in entry) ? (entry as any).price : null
+      if (target == null || cur == null || cur === 0) return null
+      return ((target - cur) / cur) * 100
     }
   }
 }
@@ -349,8 +361,8 @@ export default function MainPage({
   const rawList = holdings ?? []
   const list = rawList.length > 0
     ? rawList.slice().sort((a, b) => {
-        const aVal = getColumnValue(a, sortState.column, prices, usdNis)
-        const bVal = getColumnValue(b, sortState.column, prices, usdNis)
+        const aVal = getColumnValue(a, sortState.column, prices, usdNis, research)
+        const bVal = getColumnValue(b, sortState.column, prices, usdNis, research)
         return compareValues(aVal, bVal, sortState.direction)
       })
     : []

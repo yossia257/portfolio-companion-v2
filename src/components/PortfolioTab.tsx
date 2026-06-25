@@ -7,7 +7,7 @@ import DrillDownPanel from './DrillDownPanel'
 type SortCol =
   | 'ticker' | 'name' | 'qty' | 'buy_price'
   | 'cur_price' | 'daily_pct' | 'pre_price' | 'pre_pct'
-  | 'total_nis' | 'pnl_pct'
+  | 'total_nis' | 'pnl_pct' | 'target' | 'upside'
 type SortDir = 'asc' | 'desc'
 
 interface Holding {
@@ -703,11 +703,17 @@ export default function PortfolioTab({
                   </th>
                   {isPremium ? (
                     <>
-                      <th className="px-4 py-3 text-left font-medium text-gray-400">
-                        Target
+                      <th
+                        className="px-4 py-3 text-left font-medium cursor-pointer hover:text-white transition-colors"
+                        onClick={() => onSortClick('target')}
+                      >
+                        Target {sortState.column === 'target' && (sortState.direction === 'asc' ? '▲' : '▼')}
                       </th>
-                      <th className="px-4 py-3 text-right font-medium text-gray-400">
-                        Upside
+                      <th
+                        className="px-4 py-3 text-right font-medium cursor-pointer hover:text-white transition-colors"
+                        onClick={() => onSortClick('upside')}
+                      >
+                        Upside {sortState.column === 'upside' && (sortState.direction === 'asc' ? '▲' : '▼')}
                       </th>
                     </>
                   ) : (
