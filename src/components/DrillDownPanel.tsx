@@ -522,24 +522,15 @@ export default function DrillDownPanel({ holding, watchlistTicker, priceEntry, o
             const preColor = preChangePct >= 0 ? 'text-green-400' : 'text-red-400'
 
             return (
-              <section className="px-5 py-4 border-b border-gray-800 bg-amber-950/20 border-l-2 border-l-amber-600">
-                <div className="flex items-center gap-2 mb-3">
-                  <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-amber-600/40 border border-amber-500/50 text-xs font-bold text-amber-300">
-                    PRE-MARKET
+              <section className="px-5 py-4 border-b border-gray-800">
+                <h3 className="text-xs uppercase tracking-wider text-gray-500 mb-2">Pre-market</h3>
+                <div className="font-mono text-white/90 mb-2">
+                  ${prePrice.toFixed(2)}{' '}
+                  <span className={preColor}>
+                    {preChangePct >= 0 ? '+' : ''}{preChangePct.toFixed(2)}%
                   </span>
-                  <span className="text-xs text-gray-500">US pre-market trading</span>
                 </div>
-                <div className="space-y-2 text-sm text-gray-300">
-                  <p>
-                    Price: <span className="font-mono text-white">${prePrice.toFixed(2)}</span>
-                  </p>
-                  <p>
-                    vs. yesterday close:{' '}
-                    <span className={`font-mono font-semibold ${preColor}`}>
-                      {preChangePct >= 0 ? '+' : ''}{preChangePct.toFixed(2)}%
-                    </span>
-                  </p>
-                </div>
+                <p className="text-xs text-gray-400">vs. prior close</p>
               </section>
             )
           })()}

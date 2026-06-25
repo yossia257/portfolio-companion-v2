@@ -507,9 +507,10 @@ export default function PortfolioTab({
   const worst = performers[0] ?? null
   const best = performers[performers.length - 1] ?? null
 
+  // Show Pre column only if any visible ticker is in PRE market state
   const showPreMarket = list.some((h) => {
     const e = prices[h.ticker]
-    return e != null && !('error' in e) && (e as PriceEntry).pre_market_price != null
+    return e != null && !('error' in e) && (e as PriceEntry).market_state === 'PRE'
   })
 
   return (
@@ -672,19 +673,8 @@ export default function PortfolioTab({
                     Daily % {sortState.column === 'daily_pct' && (sortState.direction === 'asc' ? '▲' : '▼')}
                   </th>
                   {showPreMarket && (
-                    <th
-                      className="px-4 py-3 text-right font-medium cursor-pointer hover:text-white transition-colors"
-                      onClick={() => onSortClick('pre_price')}
-                    >
-                      Pre-Market {sortState.column === 'pre_price' && (sortState.direction === 'asc' ? '▲' : '▼')}
-                    </th>
-                  )}
-                  {showPreMarket && (
-                    <th
-                      className="px-4 py-3 text-right font-medium cursor-pointer hover:text-white transition-colors"
-                      onClick={() => onSortClick('pre_pct')}
-                    >
-                      Pre-Mkt % {sortState.column === 'pre_pct' && (sortState.direction === 'asc' ? '▲' : '▼')}
+                    <th className="px-4 py-3 text-right font-medium text-gray-400">
+                      Pre
                     </th>
                   )}
                   <th
@@ -742,8 +732,6 @@ export default function PortfolioTab({
                   const daily = hasLive ? (entry as PriceEntry).daily_change_pct : null
                   const prePrice = hasLive ? ((entry as PriceEntry).pre_market_price ?? null) : null
                   const preChangePct = hasLive ? ((entry as PriceEntry).pre_market_change_pct ?? null) : null
-                  const marketState = hasLive ? ((entry as PriceEntry).market_state ?? null) : null
-                  const showPreMarketPrice = isPremium && isUsd && (marketState === 'PRE' || marketState === 'PREPRE') && prePrice != null && preChangePct != null
                   const total = nisValue(h)
                   const pnl = pnlPct(h)
                   const waiting = pricesLoading && entry == null
@@ -794,26 +782,11 @@ export default function PortfolioTab({
                       </td>
 
                       {/* Current Price */}
-                      <td className="px-4 py-3 text-right">
+                      <td className="px-4 py-3 text-right tabular-nums">
                         {waiting ? (
                           <Pulse />
                         ) : cur != null ? (
-                          <div className="font-mono">
-                            {/* Regular price (always shown, always prominent) */}
-                            <div className="text-white">{ccySym}{fmtPrice(cur)}</div>
-                            {/* Pre-market line (below regular price, smaller) */}
-                            {showPreMarketPrice && prePrice != null && (
-                              <div className="text-xs text-amber-300 flex items-center gap-1 mt-0.5">
-                                <span className="px-1 py-0.5 rounded bg-amber-600/30 font-bold text-[10px]">PRE</span>
-                                <span>{ccySym}{fmtPrice(prePrice)}</span>
-                                {preChangePct != null && (
-                                  <span className={preChangePct >= 0 ? 'text-green-400' : 'text-red-400'}>
-                                    {preChangePct >= 0 ? '+' : ''}{preChangePct.toFixed(2)}%
-                                  </span>
-                                )}
-                              </div>
-                            )}
-                          </div>
+                          <span className="text-white">{ccySym}{fmtPrice(cur)}</span>
                         ) : isNoData ? (
                           <span className="text-xs text-gray-600">no live data</span>
                         ) : (
@@ -832,24 +805,18 @@ export default function PortfolioTab({
                         )}
                       </td>
 
-                      {/* Pre-Market Price */}
+                      {/* Pre (consolidated: price + % change) */}
                       {showPreMarket && (
                         <td className="px-4 py-3 text-right tabular-nums">
-                          {prePrice != null ? (
-                            <span className="text-amber-300">{ccySym}{fmtPrice(prePrice)}</span>
+                          {prePrice != null && preChangePct != null ? (
+                            <span className="text-white/90">
+                              {ccySym}{fmtPrice(prePrice)}{' '}
+                              <span className={pnlColor(preChangePct)}>
+                                {preChangePct >= 0 ? '+' : ''}{fmtPct(preChangePct)}
+                              </span>
+                            </span>
                           ) : (
-                            <span className="text-gray-700">—</span>
-                          )}
-                        </td>
-                      )}
-
-                      {/* Pre-Market % */}
-                      {showPreMarket && (
-                        <td className="px-4 py-3 text-right tabular-nums">
-                          {preChangePct != null ? (
-                            <span className={pnlColor(preChangePct)}>{fmtPct(preChangePct)}</span>
-                          ) : (
-                            <span className="text-gray-700">—</span>
+                            <span className="text-gray-500">—</span>
                           )}
                         </td>
                       )}
