@@ -189,6 +189,19 @@ Deno.serve(async (req) => {
             market_state = 'POST'
           }
 
+          // DEBUG: Log the actual trading period and derived state
+          console.error(
+            `[yahoo-proxy] ${ticker} debug:`,
+            JSON.stringify({
+              nowUTC: now,
+              nowISO: new Date(now * 1000).toISOString(),
+              currentTradingPeriod: meta.currentTradingPeriod,
+              derivedMarketState: market_state,
+              hasPrePostMarketData: meta.hasPrePostMarketData,
+              chartPreviousClose: meta.chartPreviousClose,
+            })
+          )
+
           // Part 2: For PRE state, fetch intraday data to extract pre-market price
           let pre_market_price: number | null = null
           let pre_market_change_pct: number | null = null
@@ -207,6 +220,12 @@ Deno.serve(async (req) => {
                 const preStart = periods.pre?.start ?? 0
                 const preEnd = periods.pre?.end ?? 0
 
+                // DEBUG: Log candle info
+                const inPreCandles = timestamps.filter(t => t >= preStart && t < preEnd)
+                console.error(
+                  `[yahoo-proxy] ${ticker} intraday fetch: candles=${timestamps.length}, preWindow=[${preStart}, ${preEnd}], candlesInPreWindow=${inPreCandles.length}`
+                )
+
                 // Find most recent non-null close in pre-market window
                 for (let i = timestamps.length - 1; i >= 0; i--) {
                   if (timestamps[i] >= preStart && timestamps[i] < preEnd && intradayCloses[i] != null) {
@@ -216,6 +235,9 @@ Deno.serve(async (req) => {
                     if (prevClose != null && prevClose !== 0) {
                       pre_market_change_pct = ((pre_market_price - prevClose) / prevClose) * 100
                     }
+                    console.error(
+                      `[yahoo-proxy] ${ticker} found pre-market price in candle: ${pre_market_price.toFixed(2)}, change=${pre_market_change_pct?.toFixed(2)}%`
+                    )
                     break
                   }
                 }
@@ -224,6 +246,9 @@ Deno.serve(async (req) => {
               console.warn(`[yahoo-proxy] Intraday fetch failed for ${ticker}:`, err)
               // Continue without pre-market price if intraday fetch fails
             }
+          } else if (market_state !== 'PRE') {
+            // DEBUG: Log why we skipped intraday
+            console.error(`[yahoo-proxy] ${ticker} SKIPPED intraday fetch because marketState=${market_state}`)
           }
 
           console.error(
