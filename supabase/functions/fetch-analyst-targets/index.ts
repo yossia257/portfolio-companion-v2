@@ -356,8 +356,15 @@ Deno.serve(async (req) => {
     for (const ticker of tickers) {
       const cached = cacheMap.get(ticker)
 
+      // Skip if marked for temporary skip (rate-limited or no coverage)
+      if (cached?.target_skip_until && new Date(cached.target_skip_until) > new Date()) {
+        console.error(`[fetch-analyst-targets] Skipping ${ticker} (${cached.target_skip_reason}) until ${cached.target_skip_until}`)
+        skippedEtf++
+        continue
+      }
+
       // Skip if permanently marked (ETF or no coverage)
-      if (cached?.target_skip_reason) {
+      if (cached?.target_skip_reason && cached?.target_skip_reason === 'ETF') {
         console.log(`[fetch-analyst-targets] Skipped ${ticker}: target_skip_reason=${cached.target_skip_reason}`)
         skippedEtf++
         continue
@@ -408,16 +415,33 @@ Deno.serve(async (req) => {
         targets = await fetchAlphaVantageTarget(ticker)
       }
 
-      // Skip rate-limited calls
+      // Mark rate-limited tickers for retry in 24h
       if (targets.error === 'rate_limit') {
-        console.log(`[fetch-analyst-targets] Rate limited on ${ticker}, skipping`)
+        console.log(`[fetch-analyst-targets] Alpha Vantage rate limited on ${ticker}, marking for 24h retry`)
+        try {
+          const { error } = await supabaseAdmin
+            .from('ticker_research_cache')
+            .upsert({
+              ticker,
+              target_skip_reason: 'rate_limited',
+              target_skip_until: new Date(Date.now() + 24 * 3600 * 1000).toISOString(),
+              fetched_at: new Date().toISOString(),
+            })
+
+          if (error) {
+            console.error(`[fetch-analyst-targets] Failed to mark rate-limit for ${ticker}:`, error)
+          }
+        } catch (err) {
+          console.error(`[fetch-analyst-targets] Exception marking rate-limit for ${ticker}:`, err)
+        }
         errored++
         await new Promise((resolve) => setTimeout(resolve, RATE_LIMIT_MS))
         continue
       }
 
-      // Upsert into cache
+      // Upsert into cache or mark skip
       if (targets.mean !== null || targets.low !== null || targets.high !== null) {
+        // We have data — upsert it
         try {
           const { error } = await supabaseAdmin
             .from('ticker_research_cache')
@@ -445,7 +469,26 @@ Deno.serve(async (req) => {
           errored++
         }
       } else {
-        console.log(`[fetch-analyst-targets] No target data for ${ticker} from ${targets.source}`)
+        // Both sources failed — mark with skip reason instead of upserting nulls
+        console.log(`[fetch-analyst-targets] No target data for ${ticker} from either source`)
+        try {
+          const { error } = await supabaseAdmin
+            .from('ticker_research_cache')
+            .upsert({
+              ticker,
+              target_skip_reason: 'no_analyst_coverage',
+              target_skip_until: new Date(Date.now() + 7 * 24 * 3600 * 1000).toISOString(),
+              fetched_at: new Date().toISOString(),
+            })
+
+          if (error) {
+            console.error(`[fetch-analyst-targets] Failed to mark skip for ${ticker}:`, error)
+          } else {
+            console.log(`[fetch-analyst-targets] Marked ${ticker} as no_analyst_coverage`)
+          }
+        } catch (err) {
+          console.error(`[fetch-analyst-targets] Exception marking skip for ${ticker}:`, err)
+        }
         errored++
       }
 
