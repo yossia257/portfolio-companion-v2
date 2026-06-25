@@ -223,13 +223,20 @@ export default function MainPage({
     const list = holdingsData ?? []
     setHoldings(list)
 
-    // Fetch research cache for all tickers
-    if (list.length > 0) {
-      const tickers = [...new Set(list.map((h) => h.ticker))]
+    // Fetch research cache for holdings + watchlist tickers
+    const holdingTickers = list.map((h) => h.ticker)
+    const { data: watchlistData } = await supabase
+      .from('watchlist_items')
+      .select('ticker')
+
+    const watchlistTickers = watchlistData?.map((w) => w.ticker) ?? []
+    const allTickers = [...new Set([...holdingTickers, ...watchlistTickers])]
+
+    if (allTickers.length > 0) {
       const { data: researchData } = await supabase
         .from('ticker_research_cache')
         .select('*')
-        .in('ticker', tickers)
+        .in('ticker', allTickers)
 
       if (researchData) {
         const researchMap = researchData.reduce(
@@ -308,13 +315,20 @@ export default function MainPage({
       const list = holdingsData ?? []
       setHoldings(list)
 
-      // Fetch research cache for all tickers
-      if (list.length > 0) {
-        const tickers = [...new Set(list.map((h) => h.ticker))]
+      // Fetch research cache for holdings + watchlist tickers
+      const holdingTickers = list.map((h) => h.ticker)
+      const { data: watchlistData } = await supabase
+        .from('watchlist_items')
+        .select('ticker')
+
+      const watchlistTickers = watchlistData?.map((w) => w.ticker) ?? []
+      const allTickers = [...new Set([...holdingTickers, ...watchlistTickers])]
+
+      if (allTickers.length > 0) {
         const { data: researchData } = await supabase
           .from('ticker_research_cache')
           .select('*')
-          .in('ticker', tickers)
+          .in('ticker', allTickers)
 
         if (researchData) {
           const researchMap = researchData.reduce(
