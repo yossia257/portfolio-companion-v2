@@ -335,7 +335,9 @@ export default function DrillDownPanel({ holding, watchlistTicker, priceEntry, o
   const isLive = priceEntry != null && !('error' in priceEntry)
   const curPrice = isLive ? (priceEntry as PriceEntry).price : null
   const dailyChange = isLive ? (priceEntry as PriceEntry).daily_change_pct : null
+  const ticker = holding?.ticker ?? watchlistTicker ?? ''
   const ccySym = holding?.currency?.toUpperCase() === 'USD' ? '$' : '₪'
+  const targetCurrencySymbol = ticker.endsWith('.TA') ? '₪' : '$'
   const buyPrice = holding && holding.buy_price != null ? Number(holding.buy_price) : null
   const pnl = curPrice && buyPrice && buyPrice !== 0
     ? ((curPrice - buyPrice) / buyPrice) * 100
@@ -348,8 +350,6 @@ export default function DrillDownPanel({ holding, watchlistTicker, priceEntry, o
 
   // Target price calculations (hoisted to prevent TDZ errors)
   const targetMean = research?.target_price_mean ?? null
-  const targetLow = research?.target_price_low ?? null
-  const targetHigh = research?.target_price_high ?? null
   const targetUpside = targetMean != null && curPrice != null && curPrice > 0
     ? ((targetMean - curPrice) / curPrice) * 100
     : null
@@ -485,25 +485,10 @@ export default function DrillDownPanel({ holding, watchlistTicker, priceEntry, o
                   {targetMean != null && (
                     <div className="text-sm text-gray-300 mt-3 space-y-1.5">
                       <p>
-                        Analyst target: {ccySym}{fmtNum(targetMean)}
+                        Analyst target: {targetCurrencySymbol}{fmtNum(targetMean)}
                         {targetUpside != null && (
                           <span className={`ml-2 text-xs font-semibold ${targetUpside >= 0 ? 'text-green-400' : 'text-red-400'}`}>
                             [{targetUpside >= 0 ? '+' : ''}{targetUpside.toFixed(1)}%]
-                          </span>
-                        )}
-                        {(targetLow != null || targetHigh != null) && (
-                          <span className="text-gray-500 text-xs ml-1">
-                            (
-                            {targetLow != null && targetHigh != null ? (
-                              <>
-                                low {ccySym}{fmtNum(targetLow)} · high {ccySym}{fmtNum(targetHigh)}
-                              </>
-                            ) : targetLow != null ? (
-                              <>low {ccySym}{fmtNum(targetLow)}</>
-                            ) : (
-                              <>high {ccySym}{fmtNum(targetHigh)}</>
-                            )}
-                            )
                           </span>
                         )}
                       </p>
