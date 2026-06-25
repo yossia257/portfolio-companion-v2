@@ -742,6 +742,8 @@ export default function PortfolioTab({
                   const daily = hasLive ? (entry as PriceEntry).daily_change_pct : null
                   const prePrice = hasLive ? ((entry as PriceEntry).pre_market_price ?? null) : null
                   const preChangePct = hasLive ? ((entry as PriceEntry).pre_market_change_pct ?? null) : null
+                  const marketState = hasLive ? ((entry as PriceEntry).market_state ?? null) : null
+                  const showPreMarketPrice = isPremium && isUsd && marketState === 'PRE' && prePrice != null && preChangePct != null
                   const total = nisValue(h)
                   const pnl = pnlPct(h)
                   const waiting = pricesLoading && entry == null
@@ -796,7 +798,34 @@ export default function PortfolioTab({
                         {waiting ? (
                           <Pulse />
                         ) : cur != null ? (
-                          <span className="text-white">{ccySym}{fmtPrice(cur)}</span>
+                          <div className="flex flex-col gap-1">
+                            {/* On mobile: show only PRE price if available, otherwise regular */}
+                            <span className={`sm:flex text-white ${showPreMarketPrice ? 'hidden' : 'flex'}`}>
+                              {ccySym}{fmtPrice(cur)}
+                            </span>
+                            {/* On desktop: show regular price, with PRE badge + price below if available */}
+                            {showPreMarketPrice && (
+                              <div className="flex items-center gap-1 sm:flex hidden">
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-900/40 border border-amber-700/50 text-xs font-semibold text-amber-300">
+                                  PRE
+                                </span>
+                                <span className="text-xs text-amber-300">
+                                  {ccySym}{fmtPrice(prePrice!)} {preChangePct! >= 0 ? '+' : ''}{preChangePct!.toFixed(1)}%
+                                </span>
+                              </div>
+                            )}
+                            {/* On mobile: show PRE badge + price if available */}
+                            {showPreMarketPrice && (
+                              <div className="sm:hidden flex items-center gap-1">
+                                <span className="inline-flex items-center gap-0.5 px-1.5 py-0 rounded text-xs font-semibold text-amber-300 bg-amber-900/40 border border-amber-700/50">
+                                  PRE
+                                </span>
+                                <span className="text-amber-300 text-sm">
+                                  {ccySym}{fmtPrice(prePrice!)}
+                                </span>
+                              </div>
+                            )}
+                          </div>
                         ) : isNoData ? (
                           <span className="text-xs text-gray-600">no live data</span>
                         ) : (
