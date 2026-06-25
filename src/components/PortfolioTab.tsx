@@ -527,77 +527,72 @@ export default function PortfolioTab({
         )}
       </div>
 
-      {/* KPI row */}
+      {/* KPI row — 4 cards in 2x2 on mobile, 1 row on desktop */}
       <div className="px-6 pb-8 max-w-7xl w-full mx-auto">
         {list.length > 0 && (
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 mb-8">
-          {/* Total Value */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+          {/* Total Value + Holdings */}
           <div className="bg-gray-900 border border-gray-800 rounded-xl px-5 py-4">
-            <p className="text-xs text-gray-500 uppercase tracking-wider mb-1">
+            <p className="text-xs text-gray-500 uppercase tracking-wider mb-2">
               Total Value ({profile?.display_currency ?? 'NIS'})
             </p>
             {pricesLoading && totalNis == null ? (
-              <div className="h-7 w-28 rounded bg-gray-800 animate-pulse mt-1" />
+              <div className="h-7 w-32 rounded bg-gray-800 animate-pulse" />
             ) : (
-              <p className="text-xl font-bold">{fmtNis(totalNis)}</p>
+              <p className="text-xl font-bold text-white mb-1">{fmtNis(totalNis)}</p>
             )}
+            <p className="text-xs text-gray-500">{list.length} Holdings</p>
           </div>
 
           {/* Today's Change */}
           <div className="bg-gray-900 border border-gray-800 rounded-xl px-5 py-4">
-            <p className="text-xs text-gray-500 uppercase tracking-wider mb-1">Today's Change</p>
+            <p className="text-xs text-gray-500 uppercase tracking-wider mb-2">Today's Change</p>
             {pricesLoading ? (
-              <div className="h-7 w-28 rounded bg-gray-800 animate-pulse mt-1" />
+              <div className="h-7 w-32 rounded bg-gray-800 animate-pulse" />
             ) : displayDailyChangeNis == null ? (
-              <p className="text-xl font-bold text-gray-600">—</p>
+              <p className="text-xl font-bold text-gray-600 mb-1">—</p>
             ) : (
-              <p className="text-xl font-bold">
-                <span className={displayDailyChangeNis > 0.01 ? 'text-green-400' : displayDailyChangeNis < -0.01 ? 'text-red-400' : 'text-gray-400'}>
+              <>
+                <p className={`text-xl font-bold mb-1 ${displayDailyChangeNis > 0.01 ? 'text-green-400' : displayDailyChangeNis < -0.01 ? 'text-red-400' : 'text-gray-400'}`}>
                   {displayDailyChangeNis > 0 ? '+' : ''}{fmtNis(displayDailyChangeNis)}
-                </span>
+                </p>
                 {displayDailyChangePct != null && (
-                  <span className={`text-base ml-2 ${displayDailyChangePct > 0.5 ? 'text-green-400' : displayDailyChangePct < -0.5 ? 'text-red-400' : 'text-gray-400'}`}>
-                    {displayDailyChangePct > 0 ? '+' : ''}{displayDailyChangePct.toFixed(1)}%
-                  </span>
+                  <p className={`text-xs ${displayDailyChangePct > 0.5 ? 'text-green-400' : displayDailyChangePct < -0.5 ? 'text-red-400' : 'text-gray-400'}`}>
+                    {displayDailyChangePct > 0 ? '+' : ''}{displayDailyChangePct.toFixed(1)}% today
+                  </p>
                 )}
-              </p>
+              </>
             )}
           </div>
 
-          {/* Best performer */}
+          {/* Best Performer */}
           <div className="bg-gray-900 border border-gray-800 rounded-xl px-5 py-4">
-            <p className="text-xs text-gray-500 uppercase tracking-wider mb-1">Best Performer</p>
+            <p className="text-xs text-gray-500 uppercase tracking-wider mb-2">Best Performer</p>
             {pricesLoading && !best ? (
-              <div className="h-7 w-28 rounded bg-gray-800 animate-pulse mt-1" />
+              <div className="h-7 w-32 rounded bg-gray-800 animate-pulse" />
             ) : best ? (
-              <p className="text-xl font-bold">
-                <span className="font-mono">{best.ticker}</span>{' '}
-                <span className="text-green-400 text-base">{fmtPct(best.pnl)}</span>
-              </p>
+              <>
+                <p className="text-xl font-bold text-white mb-1 font-mono">{best.ticker}</p>
+                <p className="text-xs text-green-400">{fmtPct(best.pnl)}</p>
+              </>
             ) : (
-              <p className="text-xl font-bold text-gray-600">—</p>
+              <p className="text-xl font-bold text-gray-600 mb-1">—</p>
             )}
           </div>
 
-          {/* Worst performer */}
+          {/* Worst Performer */}
           <div className="bg-gray-900 border border-gray-800 rounded-xl px-5 py-4">
-            <p className="text-xs text-gray-500 uppercase tracking-wider mb-1">Worst Performer</p>
+            <p className="text-xs text-gray-500 uppercase tracking-wider mb-2">Worst Performer</p>
             {pricesLoading && !worst ? (
-              <div className="h-7 w-28 rounded bg-gray-800 animate-pulse mt-1" />
+              <div className="h-7 w-32 rounded bg-gray-800 animate-pulse" />
             ) : worst ? (
-              <p className="text-xl font-bold">
-                <span className="font-mono">{worst.ticker}</span>{' '}
-                <span className="text-red-400 text-base">{fmtPct(worst.pnl)}</span>
-              </p>
+              <>
+                <p className="text-xl font-bold text-white mb-1 font-mono">{worst.ticker}</p>
+                <p className="text-xs text-red-400">{fmtPct(worst.pnl)}</p>
+              </>
             ) : (
-              <p className="text-xl font-bold text-gray-600">—</p>
+              <p className="text-xl font-bold text-gray-600 mb-1">—</p>
             )}
-          </div>
-
-          {/* Holdings count */}
-          <div className="bg-gray-900 border border-gray-800 rounded-xl px-5 py-4">
-            <p className="text-xs text-gray-500 uppercase tracking-wider mb-1">Holdings</p>
-            <p className="text-xl font-bold">{list.length}</p>
           </div>
         </div>
         )}
