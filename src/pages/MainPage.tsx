@@ -12,7 +12,6 @@ import SignalsTab from '../components/SignalsTab'
 import WatchlistTab from '../components/WatchlistTab'
 import AskClaudeTab from '../components/AskClaudeTab'
 import SettingsTab from '../components/SettingsTab'
-import PremiumBadge from '../components/PremiumBadge'
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -378,8 +377,8 @@ export default function MainPage({
     <div className="min-h-screen bg-gray-950 text-white flex flex-col">
 
       {/* ── Sticky navigation chrome: header + ticker + tabs ── */}
-      <div className="sticky top-0 z-30 bg-gray-950 border-b border-gray-800">
-        <header className="border-b border-gray-800 px-6 py-4 flex items-center justify-between">
+      <div className="sticky top-0 z-30 bg-gray-950 border-b border-gray-800 overflow-hidden">
+        <header className="border-b border-gray-800 px-6 py-4 flex items-center justify-between overflow-hidden">
           <div className="flex items-center gap-2">
             <div className="w-7 h-7 rounded-lg flex items-center justify-center font-bold text-white" style={{ backgroundColor: '#F59E0B' }}>
               P
@@ -400,8 +399,17 @@ export default function MainPage({
                   : 'Refreshing…'}
               </span>
             )}
-            {isPremium && <PremiumBadge size="sm" showText={false} />}
-            <div className="flex items-center gap-3">
+            {isPremium && (
+              <>
+                <span className="hidden sm:inline-flex items-center px-2 py-0.5 rounded-md bg-amber-500/20 text-amber-400 text-xs font-semibold">
+                  Premium
+                </span>
+                <span className="inline-flex sm:hidden items-center text-amber-400 text-base" title="Premium account">
+                  ⭐
+                </span>
+              </>
+            )}
+            <div className="flex items-center gap-3 flex-shrink-0">
               {holdings !== null && holdings.length > 0 && (
                 <button
                   onClick={() => doRefreshPrices(holdings)}
