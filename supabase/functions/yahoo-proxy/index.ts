@@ -144,6 +144,10 @@ Deno.serve(async (req) => {
             priorRegularClose = closes[closes.length - 2]
           } else if (meta.previousClose != null) {
             priorRegularClose = meta.previousClose
+            console.warn(
+              `[yahoo-proxy] ${ticker}: using meta.previousClose as fallback (closes length: ${Array.isArray(closes) ? closes.length : 'N/A'}). ` +
+              `Verify this is actual previous trading day close, not chart range start close.`
+            )
           }
 
           if (Array.isArray(closes) && closes.length >= 2) {
@@ -171,6 +175,19 @@ Deno.serve(async (req) => {
               console.error(`[yahoo-proxy] ${ticker}: using previousClose=${meta.previousClose} → ${daily_change_pct.toFixed(2)}%`)
             }
           }
+
+          // DEBUG: Log priorRegularClose details
+          console.error(
+            `[yahoo-proxy] ${ticker} priorRegularClose sources:`,
+            JSON.stringify({
+              closesLength: Array.isArray(closes) ? closes.length : null,
+              closesLast2: Array.isArray(closes) && closes.length >= 2 ? [closes[closes.length - 2], closes[closes.length - 1]] : null,
+              metaPreviousClose: meta.previousClose,
+              selectedPriorRegularClose: priorRegularClose,
+              rawCurrent: rawCurrent,
+              price: price,
+            })
+          )
 
           // Part 1: Derive market state from currentTradingPeriod (not from meta field which doesn't exist)
           const now = Math.floor(Date.now() / 1000)
