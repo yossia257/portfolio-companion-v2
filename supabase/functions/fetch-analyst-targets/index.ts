@@ -30,7 +30,11 @@ async function fetchYahooTargets(ticker: string): Promise<TargetPrice> {
     }
 
     const text = await res.text()
-    console.error(`[fetch-analyst-targets] Yahoo raw response for ${ticker} (first 500 chars):`, text.substring(0, 500))
+
+    // AMZN-specific diagnostic logging
+    if (ticker === 'AMZN') {
+      console.error('[fetch-analyst-targets] AMZN RAW Yahoo response (first 2000 chars):', text.substring(0, 2000))
+    }
 
     const data = JSON.parse(text)
     const fd = data.quoteSummary?.result?.[0]?.financialData
@@ -38,6 +42,16 @@ async function fetchYahooTargets(ticker: string): Promise<TargetPrice> {
     if (!fd) {
       console.log(`[fetch-analyst-targets] Yahoo no financialData for ${ticker}`)
       return { error: 'no_data' }
+    }
+
+    if (ticker === 'AMZN') {
+      console.error('[fetch-analyst-targets] AMZN financialData keys:', Object.keys(fd))
+      console.error('[fetch-analyst-targets] AMZN extracted values:', {
+        mean: fd?.targetMeanPrice?.raw,
+        high: fd?.targetHighPrice?.raw,
+        low: fd?.targetLowPrice?.raw,
+        median: fd?.targetMedianPrice?.raw,
+      })
     }
 
     console.error(`[fetch-analyst-targets] financialData keys for ${ticker}:`, fd ? Object.keys(fd) : 'null')
@@ -255,22 +269,66 @@ Deno.serve(async (req) => {
       )
     }
 
-    // 4. Find USD holdings (skip .TA and IL-*)
-    const { data: holdings, error: holdingsError } = await supabaseAdmin
-      .from('holdings')
-      .select('ticker')
-      .in('portfolio_id', portfolioIds)
-      .is('deleted_at', null)
-      .eq('currency', 'USD')
+    // 4. Fetch tickers from holdings, watchlist, and RSU grants in parallel
+    const [holdingsRes, watchlistRes, rsuRes] = await Promise.all([
+      supabaseAdmin
+        .from('holdings')
+        .select('ticker')
+        .in('portfolio_id', portfolioIds)
+        .eq('currency', 'USD')
+        .is('deleted_at', null),
+      supabaseAdmin
+        .from('watchlist_items')
+        .select('ticker')
+        .in('user_id', premiumUserIds),
+      supabaseAdmin
+        .from('rsu_grants')
+        .select('ticker')
+        .in('user_id', premiumUserIds)
+        .is('deleted_at', null),
+    ])
 
-    if (holdingsError) {
-      throw new Error(`Failed to fetch holdings: ${holdingsError.message}`)
+    if (holdingsRes.error) {
+      throw new Error(`Failed to fetch holdings: ${holdingsRes.error.message}`)
+    }
+    if (watchlistRes.error) {
+      throw new Error(`Failed to fetch watchlist: ${watchlistRes.error.message}`)
+    }
+    if (rsuRes.error) {
+      throw new Error(`Failed to fetch RSU grants: ${rsuRes.error.message}`)
     }
 
-    let tickers = [...new Set(holdings?.map((h: any) => h.ticker) ?? [])]
+    // Deduplicate across all three sources, filter to USD-only
+    const allTickers = new Set([
+      ...(holdingsRes.data ?? []).map((h: any) => h.ticker),
+      ...(watchlistRes.data ?? []).map((w: any) => w.ticker),
+      ...(rsuRes.data ?? []).map((r: any) => r.ticker),
+    ])
+
+    const tickers = [...allTickers]
       .filter((t) => !t.endsWith('.TA') && !t.startsWith('IL-'))
 
-    console.log(`[fetch-analyst-targets] Found ${tickers.length} unique USD tickers`)
+    console.error('[fetch-analyst-targets] Collected', tickers.length, 'USD tickers from:',
+      `${holdingsRes.data?.length ?? 0} holdings,`,
+      `${watchlistRes.data?.length ?? 0} watchlist,`,
+      `${rsuRes.data?.length ?? 0} RSU grants`
+    )
+
+    if (tickers.length === 0) {
+      return new Response(
+        JSON.stringify({
+          fetched: 0,
+          skipped_etf: 0,
+          skipped_cached: 0,
+          errored: 0,
+          tickers_updated: [],
+        }),
+        {
+          status: 200,
+          headers: { 'Content-Type': 'application/json', ...corsHeaders },
+        }
+      )
+    }
 
     // 5. Load current cache and identify retryable tickers
     const { data: cacheRows, error: cacheError } = await supabaseAdmin
