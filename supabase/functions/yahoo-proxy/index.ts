@@ -120,18 +120,9 @@ Deno.serve(async (req) => {
           const meta = data.chart.result[0].meta
           const result = data.chart.result[0]
 
-          // Debug logging: dump raw meta fields to diagnose pre-market data
-          console.error(
-            `[yahoo-proxy] ${ticker} meta:`,
-            JSON.stringify({
-              regularMarketPrice: meta?.regularMarketPrice,
-              preMarketPrice: meta?.preMarketPrice,
-              preMarketChange: meta?.preMarketChange,
-              preMarketChangePercent: meta?.preMarketChangePercent,
-              marketState: meta?.marketState,
-              keys: Object.keys(meta ?? {}),
-            })
-          )
+          // Cache the prior regular close from the daily fetch — this is the ground truth
+          // for pre-market % calculations (represents yesterday's regular session close)
+          const priorRegularClose = meta.chartPreviousClose
 
           const rawCurrent: number  = meta.regularMarketPrice
           if (!rawCurrent) throw new Error(`regularMarketPrice missing for ${ticker}`)
@@ -230,13 +221,21 @@ Deno.serve(async (req) => {
                 for (let i = timestamps.length - 1; i >= 0; i--) {
                   if (timestamps[i] >= preStart && timestamps[i] < preEnd && intradayCloses[i] != null) {
                     pre_market_price = intradayCloses[i]!
-                    // Pre-market % change vs previous regular session close
-                    const prevClose = meta.chartPreviousClose ?? meta.previousClose
-                    if (prevClose != null && prevClose !== 0) {
-                      pre_market_change_pct = ((pre_market_price - prevClose) / prevClose) * 100
+                    // Pre-market % change vs prior regular session close (from daily fetch, not intraday meta)
+                    if (priorRegularClose != null && priorRegularClose !== 0) {
+                      pre_market_change_pct = ((pre_market_price - priorRegularClose) / priorRegularClose) * 100
                     }
-                    console.error(
-                      `[yahoo-proxy] ${ticker} found pre-market price in candle: ${pre_market_price.toFixed(2)}, change=${pre_market_change_pct?.toFixed(2)}%`
+
+                    // Diagnostic: verify the calculation
+                    console.log(
+                      `[yahoo-proxy] ${ticker} pre-market math:`,
+                      JSON.stringify({
+                        preMarketPrice: pre_market_price,
+                        priorRegularClose: priorRegularClose,
+                        intradayChartPrevClose: meta.chartPreviousClose,
+                        changeAbs: pre_market_price - (priorRegularClose ?? 0),
+                        changePct: pre_market_change_pct,
+                      })
                     )
                     break
                   }
