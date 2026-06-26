@@ -43,7 +43,7 @@ export default function TabBar({
         ))}
       </div>
       {/* Subtle gradient hint for more content */}
-      <div className="absolute right-0 top-0 bottom-0 w-8 bg-gradient-to-l from-gray-950 pointer-events-none" />
+      <div className="absolute right-0 top-0 bottom-0 w-4 bg-gradient-to-l from-gray-950 pointer-events-none" />
     </div>
   )
 }

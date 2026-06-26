@@ -443,19 +443,19 @@ export default function WatchlistTab({ prices, pricesLoading, onRefreshPrices, r
               <thead className="sticky top-0 z-20 bg-gray-900 text-gray-400">
                 <tr>
                   <th
-                    className="sticky left-0 z-30 px-4 py-3 text-left font-medium cursor-pointer hover:text-white transition-colors bg-gray-900"
+                    className="sticky top-0 left-0 z-30 px-4 py-3 text-left font-medium cursor-pointer hover:text-white transition-colors bg-gray-900"
                     onClick={() => handleSortClick('ticker')}
                   >
                     Ticker {sortState.column === 'ticker' && (sortState.direction === 'asc' ? '▲' : '▼')}
                   </th>
                   <th
-                    className="px-4 py-3 text-right font-medium cursor-pointer hover:text-white transition-colors"
+                    className="sticky top-0 z-20 bg-gray-900 px-4 py-3 text-right font-medium cursor-pointer hover:text-white transition-colors"
                     onClick={() => handleSortClick('price')}
                   >
                     Current Price {sortState.column === 'price' && (sortState.direction === 'asc' ? '▲' : '▼')}
                   </th>
                   <th
-                    className="px-4 py-3 text-right font-medium cursor-pointer hover:text-white transition-colors"
+                    className="sticky top-0 z-20 bg-gray-900 px-4 py-3 text-right font-medium cursor-pointer hover:text-white transition-colors"
                     onClick={() => handleSortClick('daily_pct')}
                   >
                     Daily % {sortState.column === 'daily_pct' && (sortState.direction === 'asc' ? '▲' : '▼')}
@@ -463,13 +463,13 @@ export default function WatchlistTab({ prices, pricesLoading, onRefreshPrices, r
                   {showPreMarket && (
                     <>
                       <th
-                        className="px-4 py-3 text-right font-medium text-gray-400 cursor-pointer hover:text-gray-200 transition-colors"
+                        className="sticky top-0 z-20 bg-gray-900 px-4 py-3 text-right font-medium text-gray-400 cursor-pointer hover:text-gray-200 transition-colors"
                         onClick={() => handleSortClick('pre_price')}
                       >
                         Pre $ {sortState.column === 'pre_price' && (sortState.direction === 'asc' ? '▲' : '▼')}
                       </th>
                       <th
-                        className="px-4 py-3 text-right font-medium text-gray-400 cursor-pointer hover:text-gray-200 transition-colors"
+                        className="sticky top-0 z-20 bg-gray-900 px-4 py-3 text-right font-medium text-gray-400 cursor-pointer hover:text-gray-200 transition-colors"
                         onClick={() => handleSortClick('pre_pct')}
                       >
                         Pre % {sortState.column === 'pre_pct' && (sortState.direction === 'asc' ? '▲' : '▼')}
@@ -479,13 +479,13 @@ export default function WatchlistTab({ prices, pricesLoading, onRefreshPrices, r
                   {isPremium && (
                     <>
                       <th
-                        className="px-4 py-3 text-left font-medium cursor-pointer hover:text-white transition-colors"
+                        className="sticky top-0 z-20 bg-gray-900 px-4 py-3 text-left font-medium cursor-pointer hover:text-white transition-colors"
                         onClick={() => handleSortClick('target')}
                       >
                         Target {sortState.column === 'target' && (sortState.direction === 'asc' ? '▲' : '▼')}
                       </th>
                       <th
-                        className="px-4 py-3 text-right font-medium cursor-pointer hover:text-white transition-colors"
+                        className="sticky top-0 z-20 bg-gray-900 px-4 py-3 text-right font-medium cursor-pointer hover:text-white transition-colors"
                         onClick={() => handleSortClick('upside')}
                       >
                         Upside {sortState.column === 'upside' && (sortState.direction === 'asc' ? '▲' : '▼')}
@@ -493,19 +493,19 @@ export default function WatchlistTab({ prices, pricesLoading, onRefreshPrices, r
                     </>
                   )}
                   {isPremium && (
-                    <th className="px-4 py-3 text-right font-medium text-gray-400">
+                    <th className="sticky top-0 z-20 bg-gray-900 px-4 py-3 text-right font-medium text-gray-400">
                       30d
                     </th>
                   )}
-                  <th className="px-4 py-3 text-left font-medium">Note</th>
+                  <th className="sticky top-0 z-20 bg-gray-900 px-4 py-3 text-left font-medium">Note</th>
                   <th
-                    className="px-4 py-3 text-left font-medium cursor-pointer hover:text-white transition-colors"
+                    className="sticky top-0 z-20 bg-gray-900 px-4 py-3 text-left font-medium cursor-pointer hover:text-white transition-colors"
                     onClick={() => handleSortClick('added')}
                   >
                     Added {sortState.column === 'added' && (sortState.direction === 'asc' ? '▲' : '▼')}
                   </th>
-                  <th className="px-4 py-3 text-left font-medium">Source</th>
-                  <th className="px-4 py-3 text-right font-medium">Actions</th>
+                  <th className="sticky top-0 z-20 bg-gray-900 px-4 py-3 text-left font-medium">Source</th>
+                  <th className="sticky top-0 z-20 bg-gray-900 px-4 py-3 text-right font-medium">Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -517,10 +517,10 @@ export default function WatchlistTab({ prices, pricesLoading, onRefreshPrices, r
                   return (
                     <tr
                       key={item.id}
-                      className="border-t border-gray-800 hover:bg-gray-900/50 transition-colors"
+                      className="group border-t border-gray-800 hover:bg-gray-900/50 transition-colors"
                     >
                       {/* Ticker */}
-                      <td className="sticky left-0 z-10 px-4 py-3 bg-gray-900">
+                      <td className="sticky left-0 z-10 px-4 py-3 group-hover:bg-gray-900/50 transition-colors">
                         <button
                           onClick={() => setSelectedTicker(item.ticker)}
                           className="font-mono font-semibold text-white cursor-pointer hover:underline underline-offset-2 decoration-gray-500"
