@@ -682,11 +682,17 @@ export default function PortfolioTab({
                   </th>
                   {showPreMarket && (
                     <>
-                      <th className="px-4 py-3 text-right font-medium text-gray-400">
-                        Pre $
+                      <th
+                        className="px-4 py-3 text-right font-medium cursor-pointer hover:text-white transition-colors"
+                        onClick={() => onSortClick('pre_price')}
+                      >
+                        Pre $ {sortState.column === 'pre_price' && (sortState.direction === 'asc' ? '▲' : '▼')}
                       </th>
-                      <th className="px-4 py-3 text-right font-medium text-gray-400">
-                        Pre %
+                      <th
+                        className="px-4 py-3 text-right font-medium cursor-pointer hover:text-white transition-colors"
+                        onClick={() => onSortClick('pre_pct')}
+                      >
+                        Pre % {sortState.column === 'pre_pct' && (sortState.direction === 'asc' ? '▲' : '▼')}
                       </th>
                     </>
                   )}

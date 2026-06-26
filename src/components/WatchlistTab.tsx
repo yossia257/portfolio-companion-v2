@@ -295,6 +295,12 @@ export default function WatchlistTab({ prices, pricesLoading, onRefreshPrices, r
     return diffDays === 1 ? '1 day ago' : `${diffDays} days ago`
   }
 
+  // Show Pre column only if any visible ticker is in PRE market state
+  const showPreMarket = watchlistItems.some((item) => {
+    const e = prices[item.ticker]
+    return e != null && !('error' in e) && (e as PriceEntry).market_state === 'PRE'
+  })
+
   return (
     <>
       <div className="px-6 py-8 max-w-7xl w-full mx-auto">
@@ -359,6 +365,12 @@ export default function WatchlistTab({ prices, pricesLoading, onRefreshPrices, r
                   <th className="px-4 py-3 text-left font-medium">Ticker</th>
                   <th className="px-4 py-3 text-right font-medium">Current Price</th>
                   <th className="px-4 py-3 text-right font-medium">Daily %</th>
+                  {showPreMarket && (
+                    <>
+                      <th className="px-4 py-3 text-right font-medium text-gray-400">Pre $</th>
+                      <th className="px-4 py-3 text-right font-medium text-gray-400">Pre %</th>
+                    </>
+                  )}
                   {isPremium && (
                     <>
                       <th className="px-4 py-3 text-left font-medium">Target</th>
@@ -415,6 +427,30 @@ export default function WatchlistTab({ prices, pricesLoading, onRefreshPrices, r
                           <span className="text-gray-600">—</span>
                         )}
                       </td>
+
+                      {/* Pre $ */}
+                      {showPreMarket && (
+                        <td className="px-4 py-3 text-right tabular-nums text-white/90">
+                          {priceData?.pre_market_price != null ? (
+                            <>${priceData.pre_market_price.toFixed(2)}</>
+                          ) : (
+                            <span className="text-gray-500">—</span>
+                          )}
+                        </td>
+                      )}
+
+                      {/* Pre % */}
+                      {showPreMarket && (
+                        <td className="px-4 py-3 text-right tabular-nums">
+                          {priceData?.pre_market_change_pct != null ? (
+                            <span className={priceData.pre_market_change_pct >= 0 ? 'text-green-400' : 'text-red-400'}>
+                              {priceData.pre_market_change_pct >= 0 ? '+' : ''}{priceData.pre_market_change_pct.toFixed(1)}%
+                            </span>
+                          ) : (
+                            <span className="text-gray-500">—</span>
+                          )}
+                        </td>
+                      )}
 
                       {/* Target (Premium only) */}
                       {isPremium && (
