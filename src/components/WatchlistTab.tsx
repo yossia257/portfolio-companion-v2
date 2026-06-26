@@ -438,24 +438,24 @@ export default function WatchlistTab({ prices, pricesLoading, onRefreshPrices, r
             <p className="text-sm">Add a ticker above, or scroll down for AI suggestions (coming soon).</p>
           </div>
         ) : (
-          <div className="overflow-x-auto border border-gray-800 rounded-xl">
+          <div className="max-h-[80vh] overflow-x-auto overflow-y-auto border border-gray-800 rounded-xl">
             <table className="w-full text-sm">
               <thead className="bg-gray-900 text-gray-400">
                 <tr className="sticky top-0 z-50">
                   <th
-                    className="sticky left-0 z-30 px-4 py-3 text-left font-medium cursor-pointer hover:text-white transition-colors bg-gray-900"
+                    className="sticky left-0 z-30 px-4 py-3 text-left font-medium cursor-pointer hover:text-white transition-colors bg-gray-950"
                     onClick={() => handleSortClick('ticker')}
                   >
                     Ticker {sortState.column === 'ticker' && (sortState.direction === 'asc' ? '▲' : '▼')}
                   </th>
                   <th
-                    className="z-20 bg-gray-900 px-4 py-3 text-right font-medium cursor-pointer hover:text-white transition-colors"
+                    className="z-20 bg-gray-950 px-4 py-3 text-right font-medium cursor-pointer hover:text-white transition-colors"
                     onClick={() => handleSortClick('price')}
                   >
                     Current Price {sortState.column === 'price' && (sortState.direction === 'asc' ? '▲' : '▼')}
                   </th>
                   <th
-                    className="z-20 bg-gray-900 px-4 py-3 text-right font-medium cursor-pointer hover:text-white transition-colors"
+                    className="z-20 bg-gray-950 px-4 py-3 text-right font-medium cursor-pointer hover:text-white transition-colors"
                     onClick={() => handleSortClick('daily_pct')}
                   >
                     Daily % {sortState.column === 'daily_pct' && (sortState.direction === 'asc' ? '▲' : '▼')}
@@ -463,13 +463,13 @@ export default function WatchlistTab({ prices, pricesLoading, onRefreshPrices, r
                   {showPreMarket && (
                     <>
                       <th
-                        className="z-20 bg-gray-900 px-4 py-3 text-right font-medium text-gray-400 cursor-pointer hover:text-gray-200 transition-colors"
+                        className="z-20 bg-gray-950 px-4 py-3 text-right font-medium text-gray-400 cursor-pointer hover:text-gray-200 transition-colors"
                         onClick={() => handleSortClick('pre_price')}
                       >
                         Pre $ {sortState.column === 'pre_price' && (sortState.direction === 'asc' ? '▲' : '▼')}
                       </th>
                       <th
-                        className="z-20 bg-gray-900 px-4 py-3 text-right font-medium text-gray-400 cursor-pointer hover:text-gray-200 transition-colors"
+                        className="z-20 bg-gray-950 px-4 py-3 text-right font-medium text-gray-400 cursor-pointer hover:text-gray-200 transition-colors"
                         onClick={() => handleSortClick('pre_pct')}
                       >
                         Pre % {sortState.column === 'pre_pct' && (sortState.direction === 'asc' ? '▲' : '▼')}
@@ -479,13 +479,13 @@ export default function WatchlistTab({ prices, pricesLoading, onRefreshPrices, r
                   {isPremium && (
                     <>
                       <th
-                        className="z-20 bg-gray-900 px-4 py-3 text-left font-medium cursor-pointer hover:text-white transition-colors"
+                        className="z-20 bg-gray-950 px-4 py-3 text-left font-medium cursor-pointer hover:text-white transition-colors"
                         onClick={() => handleSortClick('target')}
                       >
                         Target {sortState.column === 'target' && (sortState.direction === 'asc' ? '▲' : '▼')}
                       </th>
                       <th
-                        className="z-20 bg-gray-900 px-4 py-3 text-right font-medium cursor-pointer hover:text-white transition-colors"
+                        className="z-20 bg-gray-950 px-4 py-3 text-right font-medium cursor-pointer hover:text-white transition-colors"
                         onClick={() => handleSortClick('upside')}
                       >
                         Upside {sortState.column === 'upside' && (sortState.direction === 'asc' ? '▲' : '▼')}
@@ -493,19 +493,19 @@ export default function WatchlistTab({ prices, pricesLoading, onRefreshPrices, r
                     </>
                   )}
                   {isPremium && (
-                    <th className="z-20 bg-gray-900 px-4 py-3 text-right font-medium text-gray-400">
+                    <th className="z-20 bg-gray-950 px-4 py-3 text-right font-medium text-gray-400">
                       30d
                     </th>
                   )}
-                  <th className="z-20 bg-gray-900 px-4 py-3 text-left font-medium">Note</th>
+                  <th className="z-20 bg-gray-950 px-4 py-3 text-left font-medium">Note</th>
                   <th
-                    className="z-20 bg-gray-900 px-4 py-3 text-left font-medium cursor-pointer hover:text-white transition-colors"
+                    className="z-20 bg-gray-950 px-4 py-3 text-left font-medium cursor-pointer hover:text-white transition-colors"
                     onClick={() => handleSortClick('added')}
                   >
                     Added {sortState.column === 'added' && (sortState.direction === 'asc' ? '▲' : '▼')}
                   </th>
-                  <th className="z-20 bg-gray-900 px-4 py-3 text-left font-medium">Source</th>
-                  <th className="z-20 bg-gray-900 px-4 py-3 text-right font-medium">Actions</th>
+                  <th className="z-20 bg-gray-950 px-4 py-3 text-left font-medium">Source</th>
+                  <th className="z-20 bg-gray-950 px-4 py-3 text-right font-medium">Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -520,7 +520,7 @@ export default function WatchlistTab({ prices, pricesLoading, onRefreshPrices, r
                       className="group border-t border-gray-800 hover:bg-gray-900/50 transition-colors"
                     >
                       {/* Ticker */}
-                      <td className="sticky left-0 z-10 px-4 py-3 bg-gray-900 transition-colors group-hover:bg-gray-900/50">
+                      <td className="sticky left-0 z-10 px-4 py-3 bg-gray-950 transition-colors group-hover:bg-gray-900/50">
                         <button
                           onClick={() => setSelectedTicker(item.ticker)}
                           className="font-mono font-semibold text-white cursor-pointer hover:underline underline-offset-2 decoration-gray-500"
