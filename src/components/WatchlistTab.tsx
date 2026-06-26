@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
 import { toast } from 'sonner'
 import { supabase } from '../lib/supabase'
 import { getDirection, getTextAlign } from '../lib/rtl'
@@ -6,6 +6,9 @@ import { useUserProfile } from '../lib/useUserProfile'
 import type { PriceMap } from '../lib/prices'
 import DrillDownPanel from './DrillDownPanel'
 import type { PriceEntry } from '../lib/prices'
+
+type WatchlistSortCol = 'ticker' | 'price' | 'daily_pct' | 'pre_price' | 'pre_pct' | 'target' | 'upside' | 'added'
+type SortDir = 'asc' | 'desc'
 
 interface WatchlistItem {
   id: string
@@ -23,6 +26,60 @@ interface AIIdea {
   risk: string
   sizing: string
   tax_considerations?: string
+}
+
+function getWatchlistColumnValue(item: WatchlistItem, col: WatchlistSortCol, prices: PriceMap, research: Record<string, any> = {}): number | string | null {
+  switch (col) {
+    case 'ticker':
+      return item.ticker ?? null
+    case 'price': {
+      const entry = prices[item.ticker]
+      return entry != null && !('error' in entry) ? (entry as any).price : null
+    }
+    case 'daily_pct': {
+      const entry = prices[item.ticker]
+      return entry != null && !('error' in entry) ? (entry as any).daily_change_pct : null
+    }
+    case 'pre_price': {
+      const entry = prices[item.ticker]
+      return entry != null && !('error' in entry) ? ((entry as any).pre_market_price ?? null) : null
+    }
+    case 'pre_pct': {
+      const entry = prices[item.ticker]
+      return entry != null && !('error' in entry) ? ((entry as any).pre_market_change_pct ?? null) : null
+    }
+    case 'target': {
+      const researchData = research[item.ticker]
+      return researchData?.target_price_mean ?? null
+    }
+    case 'upside': {
+      const researchData = research[item.ticker]
+      const target = researchData?.target_price_mean
+      const entry = prices[item.ticker]
+      const cur = entry != null && !('error' in entry) ? (entry as any).price : null
+      if (target == null || cur == null || cur === 0) return null
+      return ((target - cur) / cur) * 100
+    }
+    case 'added':
+      return item.created_at
+  }
+}
+
+function compareValues(aVal: number | string | null, bVal: number | string | null, direction: SortDir): number {
+  if (aVal == null && bVal == null) return 0
+  if (aVal == null) return 1
+  if (bVal == null) return -1
+
+  const isNum = typeof aVal === 'number'
+  let cmp: number
+
+  if (isNum) {
+    cmp = (aVal as number) - (bVal as number)
+  } else {
+    cmp = (aVal as string).localeCompare(bVal as string)
+  }
+
+  return direction === 'asc' ? cmp : -cmp
 }
 
 interface Props {
@@ -43,6 +100,7 @@ export default function WatchlistTab({ prices, pricesLoading, onRefreshPrices, r
   const [selectedTicker, setSelectedTicker] = useState<string | null>(null)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editingNote, setEditingNote] = useState('')
+  const [sortState, setSortState] = useState<{ column: WatchlistSortCol; direction: SortDir }>({ column: 'ticker', direction: 'asc' })
 
   const [ideas, setIdeas] = useState<AIIdea[]>([])
   const [ideasLoading, setIdeasLoading] = useState(false)
@@ -301,6 +359,24 @@ export default function WatchlistTab({ prices, pricesLoading, onRefreshPrices, r
     return e != null && !('error' in e) && (e as PriceEntry).market_state === 'PRE'
   })
 
+  // Sorted watchlist
+  const sortedWatchlist = useMemo(() => {
+    return [...watchlistItems].sort((a, b) => {
+      const aVal = getWatchlistColumnValue(a, sortState.column, prices, research)
+      const bVal = getWatchlistColumnValue(b, sortState.column, prices, research)
+      return compareValues(aVal, bVal, sortState.direction)
+    })
+  }, [watchlistItems, sortState, prices, research])
+
+  function handleSortClick(col: WatchlistSortCol) {
+    setSortState((prev) => {
+      if (prev.column === col) {
+        return prev.direction === 'asc' ? { column: col, direction: 'desc' } : { column: 'ticker', direction: 'asc' }
+      }
+      return { column: col, direction: 'asc' }
+    })
+  }
+
   return (
     <>
       <div className="px-6 py-8 max-w-7xl w-full mx-auto">
@@ -362,29 +438,69 @@ export default function WatchlistTab({ prices, pricesLoading, onRefreshPrices, r
             <table className="w-full text-sm">
               <thead className="bg-gray-900 text-gray-400">
                 <tr>
-                  <th className="px-4 py-3 text-left font-medium">Ticker</th>
-                  <th className="px-4 py-3 text-right font-medium">Current Price</th>
-                  <th className="px-4 py-3 text-right font-medium">Daily %</th>
+                  <th
+                    className="px-4 py-3 text-left font-medium cursor-pointer hover:text-white transition-colors"
+                    onClick={() => handleSortClick('ticker')}
+                  >
+                    Ticker {sortState.column === 'ticker' && (sortState.direction === 'asc' ? '▲' : '▼')}
+                  </th>
+                  <th
+                    className="px-4 py-3 text-right font-medium cursor-pointer hover:text-white transition-colors"
+                    onClick={() => handleSortClick('price')}
+                  >
+                    Current Price {sortState.column === 'price' && (sortState.direction === 'asc' ? '▲' : '▼')}
+                  </th>
+                  <th
+                    className="px-4 py-3 text-right font-medium cursor-pointer hover:text-white transition-colors"
+                    onClick={() => handleSortClick('daily_pct')}
+                  >
+                    Daily % {sortState.column === 'daily_pct' && (sortState.direction === 'asc' ? '▲' : '▼')}
+                  </th>
                   {showPreMarket && (
                     <>
-                      <th className="px-4 py-3 text-right font-medium text-gray-400">Pre $</th>
-                      <th className="px-4 py-3 text-right font-medium text-gray-400">Pre %</th>
+                      <th
+                        className="px-4 py-3 text-right font-medium text-gray-400 cursor-pointer hover:text-gray-200 transition-colors"
+                        onClick={() => handleSortClick('pre_price')}
+                      >
+                        Pre $ {sortState.column === 'pre_price' && (sortState.direction === 'asc' ? '▲' : '▼')}
+                      </th>
+                      <th
+                        className="px-4 py-3 text-right font-medium text-gray-400 cursor-pointer hover:text-gray-200 transition-colors"
+                        onClick={() => handleSortClick('pre_pct')}
+                      >
+                        Pre % {sortState.column === 'pre_pct' && (sortState.direction === 'asc' ? '▲' : '▼')}
+                      </th>
                     </>
                   )}
                   {isPremium && (
                     <>
-                      <th className="px-4 py-3 text-left font-medium">Target</th>
-                      <th className="px-4 py-3 text-right font-medium">Upside</th>
+                      <th
+                        className="px-4 py-3 text-left font-medium cursor-pointer hover:text-white transition-colors"
+                        onClick={() => handleSortClick('target')}
+                      >
+                        Target {sortState.column === 'target' && (sortState.direction === 'asc' ? '▲' : '▼')}
+                      </th>
+                      <th
+                        className="px-4 py-3 text-right font-medium cursor-pointer hover:text-white transition-colors"
+                        onClick={() => handleSortClick('upside')}
+                      >
+                        Upside {sortState.column === 'upside' && (sortState.direction === 'asc' ? '▲' : '▼')}
+                      </th>
                     </>
                   )}
                   <th className="px-4 py-3 text-left font-medium">Note</th>
-                  <th className="px-4 py-3 text-left font-medium">Added</th>
+                  <th
+                    className="px-4 py-3 text-left font-medium cursor-pointer hover:text-white transition-colors"
+                    onClick={() => handleSortClick('added')}
+                  >
+                    Added {sortState.column === 'added' && (sortState.direction === 'asc' ? '▲' : '▼')}
+                  </th>
                   <th className="px-4 py-3 text-left font-medium">Source</th>
                   <th className="px-4 py-3 text-right font-medium">Actions</th>
                 </tr>
               </thead>
               <tbody>
-                {watchlistItems.map((item) => {
+                {sortedWatchlist.map((item) => {
                   const entry = prices[item.ticker]
                   const hasPrice = entry && !('error' in entry)
                   const priceData = hasPrice ? (entry as PriceEntry) : null
