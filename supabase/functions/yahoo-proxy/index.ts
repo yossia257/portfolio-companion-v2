@@ -243,9 +243,9 @@ Deno.serve(async (req) => {
                 for (let i = timestamps.length - 1; i >= 0; i--) {
                   if (timestamps[i] >= preStart && timestamps[i] < preEnd && intradayCloses[i] != null) {
                     pre_market_price = intradayCloses[i]!
-                    // Pre-market % change vs prior regular session close (from daily fetch, not intraday meta)
-                    if (priorRegularClose != null && priorRegularClose !== 0) {
-                      pre_market_change_pct = ((pre_market_price - priorRegularClose) / priorRegularClose) * 100
+                    // Pre-market % change vs current regular session price (what the UI displays)
+                    if (pre_market_price != null && price != null && price !== 0) {
+                      pre_market_change_pct = ((pre_market_price - price) / price) * 100
                     }
 
                     // Diagnostic: verify the calculation
@@ -253,11 +253,11 @@ Deno.serve(async (req) => {
                       `[yahoo-proxy] ${ticker} pre-market math:`,
                       JSON.stringify({
                         preMarketPrice: pre_market_price,
-                        priorRegularClose: priorRegularClose,
-                        diff: pre_market_price - (priorRegularClose ?? 0),
+                        currentPrice: price,
+                        diff: pre_market_price - (price ?? 0),
                         pct: pre_market_change_pct,
-                        expectedSign: pre_market_price != null && priorRegularClose != null
-                          ? (pre_market_price > priorRegularClose ? 'positive' : pre_market_price < priorRegularClose ? 'negative' : 'zero')
+                        expectedSign: pre_market_price != null && price != null
+                          ? (pre_market_price > price ? 'positive' : pre_market_price < price ? 'negative' : 'zero')
                           : 'n/a',
                       })
                     )
