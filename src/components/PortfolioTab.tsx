@@ -648,39 +648,39 @@ export default function PortfolioTab({
           <div className="overflow-x-auto rounded-xl border border-gray-800">
             <table className="w-full text-sm">
               <thead className="bg-gray-900 text-gray-400">
-                <tr>
+                <tr className="sticky top-0 z-50">
                   <th
-                    className="sticky top-0 left-0 z-30 px-4 py-3 text-left font-medium cursor-pointer hover:text-white transition-colors bg-gray-900"
+                    className="sticky left-0 z-30 px-4 py-3 text-left font-medium cursor-pointer hover:text-white transition-colors bg-gray-900"
                     onClick={() => onSortClick('ticker')}
                   >
                     Ticker {sortState.column === 'ticker' && (sortState.direction === 'asc' ? '▲' : '▼')}
                   </th>
                   <th
-                    className="sticky top-0 z-20 bg-gray-900 px-4 py-3 text-left font-medium cursor-pointer hover:text-white transition-colors"
+                    className="z-20 bg-gray-900 px-4 py-3 text-left font-medium cursor-pointer hover:text-white transition-colors"
                     onClick={() => onSortClick('name')}
                   >
                     Name {sortState.column === 'name' && (sortState.direction === 'asc' ? '▲' : '▼')}
                   </th>
                   <th
-                    className="sticky top-0 z-20 bg-gray-900 px-4 py-3 text-right font-medium cursor-pointer hover:text-white transition-colors"
+                    className="z-20 bg-gray-900 px-4 py-3 text-right font-medium cursor-pointer hover:text-white transition-colors"
                     onClick={() => onSortClick('qty')}
                   >
                     Qty {sortState.column === 'qty' && (sortState.direction === 'asc' ? '▲' : '▼')}
                   </th>
                   <th
-                    className="sticky top-0 z-20 bg-gray-900 px-4 py-3 text-right font-medium cursor-pointer hover:text-white transition-colors"
+                    className="z-20 bg-gray-900 px-4 py-3 text-right font-medium cursor-pointer hover:text-white transition-colors"
                     onClick={() => onSortClick('buy_price')}
                   >
                     Buy Price {sortState.column === 'buy_price' && (sortState.direction === 'asc' ? '▲' : '▼')}
                   </th>
                   <th
-                    className="sticky top-0 z-20 bg-gray-900 px-4 py-3 text-right font-medium cursor-pointer hover:text-white transition-colors"
+                    className="z-20 bg-gray-900 px-4 py-3 text-right font-medium cursor-pointer hover:text-white transition-colors"
                     onClick={() => onSortClick('cur_price')}
                   >
                     Current Price {sortState.column === 'cur_price' && (sortState.direction === 'asc' ? '▲' : '▼')}
                   </th>
                   <th
-                    className="sticky top-0 z-20 bg-gray-900 px-4 py-3 text-right font-medium cursor-pointer hover:text-white transition-colors"
+                    className="z-20 bg-gray-900 px-4 py-3 text-right font-medium cursor-pointer hover:text-white transition-colors"
                     onClick={() => onSortClick('daily_pct')}
                   >
                     Daily % {sortState.column === 'daily_pct' && (sortState.direction === 'asc' ? '▲' : '▼')}
@@ -688,13 +688,13 @@ export default function PortfolioTab({
                   {showPreMarket && (
                     <>
                       <th
-                        className="sticky top-0 z-20 bg-gray-900 px-4 py-3 text-right font-medium cursor-pointer hover:text-white transition-colors"
+                        className="z-20 bg-gray-900 px-4 py-3 text-right font-medium cursor-pointer hover:text-white transition-colors"
                         onClick={() => onSortClick('pre_price')}
                       >
                         Pre $ {sortState.column === 'pre_price' && (sortState.direction === 'asc' ? '▲' : '▼')}
                       </th>
                       <th
-                        className="sticky top-0 z-20 bg-gray-900 px-4 py-3 text-right font-medium cursor-pointer hover:text-white transition-colors"
+                        className="z-20 bg-gray-900 px-4 py-3 text-right font-medium cursor-pointer hover:text-white transition-colors"
                         onClick={() => onSortClick('pre_pct')}
                       >
                         Pre % {sortState.column === 'pre_pct' && (sortState.direction === 'asc' ? '▲' : '▼')}
@@ -703,21 +703,21 @@ export default function PortfolioTab({
                   )}
                   {showPostMarket && (
                     <>
-                      <th className="sticky top-0 z-20 bg-gray-900 px-4 py-3 text-right font-medium text-gray-400">
+                      <th className="z-20 bg-gray-900 px-4 py-3 text-right font-medium text-gray-400">
                         Post $
                       </th>
-                      <th className="sticky top-0 z-20 bg-gray-900 px-4 py-3 text-right font-medium text-gray-400">
+                      <th className="z-20 bg-gray-900 px-4 py-3 text-right font-medium text-gray-400">
                         Post %
                       </th>
                     </>
                   )}
                   {isPremium && (
-                    <th className="sticky top-0 z-20 bg-gray-900 px-4 py-3 text-right font-medium text-gray-400">
+                    <th className="z-20 bg-gray-900 px-4 py-3 text-right font-medium text-gray-400">
                       30d
                     </th>
                   )}
                   <th
-                    className="sticky top-0 z-20 bg-gray-900 px-4 py-3 text-right font-medium cursor-pointer hover:text-white transition-colors whitespace-nowrap"
+                    className="z-20 bg-gray-900 px-4 py-3 text-right font-medium cursor-pointer hover:text-white transition-colors whitespace-nowrap"
                     onClick={() => onSortClick('total_nis')}
                   >
                     <span className="hidden sm:inline">Total ({profile?.display_currency ?? 'NIS'})</span>
@@ -725,7 +725,7 @@ export default function PortfolioTab({
                     {sortState.column === 'total_nis' && (sortState.direction === 'asc' ? '▲' : '▼')}
                   </th>
                   <th
-                    className="sticky top-0 z-20 bg-gray-900 px-4 py-3 text-right font-medium cursor-pointer hover:text-white transition-colors"
+                    className="z-20 bg-gray-900 px-4 py-3 text-right font-medium cursor-pointer hover:text-white transition-colors"
                     onClick={() => onSortClick('pnl_pct')}
                   >
                     P&amp;L % {sortState.column === 'pnl_pct' && (sortState.direction === 'asc' ? '▲' : '▼')}
@@ -733,13 +733,13 @@ export default function PortfolioTab({
                   {isPremium ? (
                     <>
                       <th
-                        className="sticky top-0 z-20 bg-gray-900 px-4 py-3 text-left font-medium cursor-pointer hover:text-white transition-colors"
+                        className="z-20 bg-gray-900 px-4 py-3 text-left font-medium cursor-pointer hover:text-white transition-colors"
                         onClick={() => onSortClick('target')}
                       >
                         Target {sortState.column === 'target' && (sortState.direction === 'asc' ? '▲' : '▼')}
                       </th>
                       <th
-                        className="sticky top-0 z-20 bg-gray-900 px-4 py-3 text-right font-medium cursor-pointer hover:text-white transition-colors"
+                        className="z-20 bg-gray-900 px-4 py-3 text-right font-medium cursor-pointer hover:text-white transition-colors"
                         onClick={() => onSortClick('upside')}
                       >
                         Upside {sortState.column === 'upside' && (sortState.direction === 'asc' ? '▲' : '▼')}
@@ -747,13 +747,13 @@ export default function PortfolioTab({
                     </>
                   ) : (
                     <th
-                      className="sticky top-0 z-20 bg-gray-900 px-4 py-3 text-left font-medium text-gray-400"
+                      className="z-20 bg-gray-900 px-4 py-3 text-left font-medium text-gray-400"
                     >
                       Category
                     </th>
                   )}
                   <th
-                    className="sticky top-0 z-20 bg-gray-900 px-4 py-3 text-right font-medium text-gray-400"
+                    className="z-20 bg-gray-900 px-4 py-3 text-right font-medium text-gray-400"
                   >
                     {/* Delete column header */}
                   </th>
@@ -785,9 +785,7 @@ export default function PortfolioTab({
                       }`}
                     >
                       {/* Ticker */}
-                      <td className={`sticky left-0 z-10 px-4 py-3 whitespace-nowrap transition-colors ${
-                        i % 2 === 0 ? 'group-hover:bg-gray-900/50' : 'bg-gray-900/20 group-hover:bg-gray-900/50'
-                      }`}>
+                      <td className={`sticky left-0 z-10 px-4 py-3 whitespace-nowrap bg-gray-900 transition-colors group-hover:bg-gray-900/50`}>
                         <button
                           onClick={() => setSelectedHolding(h)}
                           className="font-mono font-semibold text-white cursor-pointer hover:underline underline-offset-2 decoration-gray-500"
