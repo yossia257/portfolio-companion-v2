@@ -6,8 +6,6 @@ export type PriceEntry = {
   currency?:             string
   pre_market_price?:     number | null
   pre_market_change_pct?: number | null
-  post_market_price?:    number | null
-  post_market_change_pct?: number | null
   market_state?:         string | null
 }
 export type ErrorEntry = { error: string }
