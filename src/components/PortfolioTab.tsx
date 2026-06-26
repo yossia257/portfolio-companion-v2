@@ -1,8 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { useUserProfile } from '../lib/useUserProfile'
+import { useTickerHistory } from '../lib/hooks/useTickerHistory'
 import type { PriceMap } from '../lib/prices'
 import DrillDownPanel from './DrillDownPanel'
+import { Sparkline } from './Sparkline'
 
 type SortCol =
   | 'ticker' | 'name' | 'qty' | 'buy_price'
@@ -236,6 +238,9 @@ export default function PortfolioTab({
   const [addingHolding, setAddingHolding] = useState(false)
 
   const { isPremium } = useUserProfile()
+
+  const visibleTickers = (sortedHoldings ?? []).map((h) => h.ticker)
+  const { histories } = useTickerHistory(isPremium ? visibleTickers : [])
 
   // Fetch analyst targets in background on mount for Premium users
   useEffect(() => {
@@ -706,6 +711,11 @@ export default function PortfolioTab({
                       </th>
                     </>
                   )}
+                  {isPremium && (
+                    <th className="px-4 py-3 text-right font-medium text-gray-400">
+                      30d
+                    </th>
+                  )}
                   <th
                     className="px-4 py-3 text-right font-medium cursor-pointer hover:text-white transition-colors whitespace-nowrap"
                     onClick={() => onSortClick('total_nis')}
@@ -877,6 +887,13 @@ export default function PortfolioTab({
                           ) : (
                             <span className="text-gray-500">—</span>
                           )}
+                        </td>
+                      )}
+
+                      {/* 30d Sparkline */}
+                      {isPremium && (
+                        <td className="px-4 py-3 text-right">
+                          <Sparkline closes={histories[h.ticker]} />
                         </td>
                       )}
 

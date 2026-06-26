@@ -3,9 +3,11 @@ import { toast } from 'sonner'
 import { supabase } from '../lib/supabase'
 import { getDirection, getTextAlign } from '../lib/rtl'
 import { useUserProfile } from '../lib/useUserProfile'
+import { useTickerHistory } from '../lib/hooks/useTickerHistory'
 import type { PriceMap } from '../lib/prices'
 import DrillDownPanel from './DrillDownPanel'
 import type { PriceEntry } from '../lib/prices'
+import { Sparkline } from './Sparkline'
 
 type WatchlistSortCol = 'ticker' | 'price' | 'daily_pct' | 'pre_price' | 'pre_pct' | 'target' | 'upside' | 'added'
 type SortDir = 'asc' | 'desc'
@@ -94,6 +96,8 @@ export default function WatchlistTab({ prices, pricesLoading, onRefreshPrices, r
   const userLanguage = profile?.ai_response_language ?? 'en'
 
   const [formTicker, setFormTicker] = useState('')
+  const visibleTickers = (prices ? Object.keys(prices) : [])
+  const { histories } = useTickerHistory(isPremium ? visibleTickers : [])
   const [formNote, setFormNote] = useState('')
   const [watchlistItems, setWatchlistItems] = useState<WatchlistItem[]>([])
   const [loading, setLoading] = useState(true)
@@ -488,6 +492,11 @@ export default function WatchlistTab({ prices, pricesLoading, onRefreshPrices, r
                       </th>
                     </>
                   )}
+                  {isPremium && (
+                    <th className="px-4 py-3 text-right font-medium text-gray-400">
+                      30d
+                    </th>
+                  )}
                   <th className="px-4 py-3 text-left font-medium">Note</th>
                   <th
                     className="px-4 py-3 text-left font-medium cursor-pointer hover:text-white transition-colors"
@@ -600,6 +609,13 @@ export default function WatchlistTab({ prices, pricesLoading, onRefreshPrices, r
 
                             return null
                           })()}
+                        </td>
+                      )}
+
+                      {/* 30d Sparkline */}
+                      {isPremium && (
+                        <td className="px-4 py-3 text-right">
+                          <Sparkline closes={histories[item.ticker]} />
                         </td>
                       )}
 
