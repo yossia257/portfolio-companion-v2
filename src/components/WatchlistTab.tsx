@@ -440,10 +440,10 @@ export default function WatchlistTab({ prices, pricesLoading, onRefreshPrices, r
         ) : (
           <div className="overflow-x-auto border border-gray-800 rounded-xl">
             <table className="w-full text-sm">
-              <thead className="bg-gray-900 text-gray-400">
+              <thead className="sticky top-0 z-20 bg-gray-900 text-gray-400">
                 <tr>
                   <th
-                    className="px-4 py-3 text-left font-medium cursor-pointer hover:text-white transition-colors"
+                    className="sticky left-0 z-30 px-4 py-3 text-left font-medium cursor-pointer hover:text-white transition-colors bg-gray-900"
                     onClick={() => handleSortClick('ticker')}
                   >
                     Ticker {sortState.column === 'ticker' && (sortState.direction === 'asc' ? '▲' : '▼')}
@@ -520,7 +520,7 @@ export default function WatchlistTab({ prices, pricesLoading, onRefreshPrices, r
                       className="border-t border-gray-800 hover:bg-gray-900/50 transition-colors"
                     >
                       {/* Ticker */}
-                      <td className="px-4 py-3">
+                      <td className="sticky left-0 z-10 px-4 py-3 bg-gray-900">
                         <button
                           onClick={() => setSelectedTicker(item.ticker)}
                           className="font-mono font-semibold text-white cursor-pointer hover:underline underline-offset-2 decoration-gray-500"
