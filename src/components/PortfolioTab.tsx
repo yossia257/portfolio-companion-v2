@@ -515,6 +515,12 @@ export default function PortfolioTab({
     return e != null && !('error' in e) && (e as PriceEntry).market_state === 'PRE'
   })
 
+  // Show Post column only if any visible ticker is in POST market state
+  const showPostMarket = list.some((h) => {
+    const e = prices[h.ticker]
+    return e != null && !('error' in e) && (e as PriceEntry).market_state === 'POST'
+  })
+
   return (
     <>
       {/* Header with Add button */}
@@ -684,6 +690,16 @@ export default function PortfolioTab({
                       </th>
                     </>
                   )}
+                  {showPostMarket && (
+                    <>
+                      <th className="px-4 py-3 text-right font-medium text-gray-400">
+                        Post $
+                      </th>
+                      <th className="px-4 py-3 text-right font-medium text-gray-400">
+                        Post %
+                      </th>
+                    </>
+                  )}
                   <th
                     className="px-4 py-3 text-right font-medium cursor-pointer hover:text-white transition-colors whitespace-nowrap"
                     onClick={() => onSortClick('total_nis')}
@@ -739,6 +755,8 @@ export default function PortfolioTab({
                   const daily = hasLive ? (entry as PriceEntry).daily_change_pct : null
                   const prePrice = hasLive ? ((entry as PriceEntry).pre_market_price ?? null) : null
                   const preChangePct = hasLive ? ((entry as PriceEntry).pre_market_change_pct ?? null) : null
+                  const postPrice = hasLive ? ((entry as PriceEntry).post_market_price ?? null) : null
+                  const postChangePct = hasLive ? ((entry as PriceEntry).post_market_change_pct ?? null) : null
                   const total = nisValue(h)
                   const pnl = pnlPct(h)
                   const waiting = pricesLoading && entry == null
@@ -828,6 +846,28 @@ export default function PortfolioTab({
                         <td className="px-4 py-3 text-right tabular-nums">
                           {preChangePct != null ? (
                             <span className={pnlColor(preChangePct)}>{fmtPct(preChangePct)}</span>
+                          ) : (
+                            <span className="text-gray-500">—</span>
+                          )}
+                        </td>
+                      )}
+
+                      {/* Post $ column */}
+                      {showPostMarket && (
+                        <td className="px-4 py-3 text-right tabular-nums text-white/90">
+                          {postPrice != null ? (
+                            <>{ccySym}{fmtPrice(postPrice)}</>
+                          ) : (
+                            <span className="text-gray-500">—</span>
+                          )}
+                        </td>
+                      )}
+
+                      {/* Post % column */}
+                      {showPostMarket && (
+                        <td className="px-4 py-3 text-right tabular-nums">
+                          {postChangePct != null ? (
+                            <span className={pnlColor(postChangePct)}>{fmtPct(postChangePct)}</span>
                           ) : (
                             <span className="text-gray-500">—</span>
                           )}

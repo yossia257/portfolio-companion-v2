@@ -535,6 +535,37 @@ export default function DrillDownPanel({ holding, watchlistTicker, priceEntry, o
             )
           })()}
 
+          {/* ── Post-market (Premium USD tickers during POST state) ── */}
+          {(() => {
+            if ('error' in (priceEntry ?? {})) return null
+
+            const entry = priceEntry as PriceEntry | undefined
+            const showPostMarket =
+              holding?.currency?.toUpperCase() === 'USD' &&
+              entry?.market_state === 'POST' &&
+              entry?.post_market_price != null &&
+              entry?.post_market_change_pct != null
+
+            if (!showPostMarket) return null
+
+            const postPrice = entry!.post_market_price!
+            const postChangePct = entry!.post_market_change_pct!
+            const postColor = postChangePct >= 0 ? 'text-green-400' : 'text-red-400'
+
+            return (
+              <section className="px-5 py-4 border-b border-gray-800">
+                <h3 className="text-xs uppercase tracking-wider text-gray-500 mb-2">Post-market</h3>
+                <div className="font-mono text-white/90 mb-2">
+                  ${postPrice.toFixed(2)}{' '}
+                  <span className={postColor}>
+                    {postChangePct >= 0 ? '+' : ''}{postChangePct.toFixed(1)}%
+                  </span>
+                </div>
+                <p className="text-xs text-gray-400">vs. today's close</p>
+              </section>
+            )
+          })()}
+
           {/* ── Technical Indicators ── (fast) */}
           <section className="px-5 py-4 border-b border-gray-800">
             <h3 className="text-xs uppercase tracking-wider text-gray-500 mb-3">Technical Indicators</h3>
