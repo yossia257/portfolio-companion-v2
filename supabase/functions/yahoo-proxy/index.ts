@@ -35,6 +35,8 @@ type CacheRow = {
   daily_change_pct:      number
   pre_market_price:      number | null
   pre_market_change_pct: number | null
+  post_market_price:     number | null
+  post_market_change_pct: number | null
   market_state:          string | null
   fetched_at:            string
 }
@@ -45,6 +47,8 @@ type PriceEntry = {
   currency:              'USD' | 'NIS'
   pre_market_price:      number | null
   pre_market_change_pct: number | null
+  post_market_price:     number | null
+  post_market_change_pct: number | null
   market_state:          string | null
 }
 
@@ -74,7 +78,7 @@ Deno.serve(async (req) => {
     // ── Step 1: Read cache ───────────────────────────────────────────────────
     const { data: cachedRows } = await supabase
       .from('price_cache')
-      .select('ticker, price, daily_change_pct, pre_market_price, pre_market_change_pct, market_state, fetched_at')
+      .select('ticker, price, daily_change_pct, pre_market_price, pre_market_change_pct, post_market_price, post_market_change_pct, market_state, fetched_at')
       .in('ticker', tickers)
 
     const now = Date.now()
@@ -88,6 +92,8 @@ Deno.serve(async (req) => {
           daily_change_pct:      Number(row.daily_change_pct),
           pre_market_price:      row.pre_market_price      != null ? Number(row.pre_market_price)      : null,
           pre_market_change_pct: row.pre_market_change_pct != null ? Number(row.pre_market_change_pct) : null,
+          post_market_price:     row.post_market_price     != null ? Number(row.post_market_price)     : null,
+          post_market_change_pct: row.post_market_change_pct != null ? Number(row.post_market_change_pct) : null,
           market_state:          row.market_state          ?? null,
         })
       }
@@ -137,15 +143,38 @@ Deno.serve(async (req) => {
           const quote = Array.isArray(quoteArray) ? quoteArray[0] : null
           const closes = quote?.close
 
-          // Cache the prior regular close from actual daily candles (or fallback to meta.previousClose)
-          // This is the ground truth for pre-market % calculations (represents yesterday's regular session close)
+          // Find the most recent close BEFORE today's pre-market window opens.
+          // Use timestamp-based lookup to handle whether today's daily candle exists or not.
+          const timestamps: number[] = data.chart.result[0].timestamp ?? []
           let priorRegularClose: number | null = null
-          if (Array.isArray(closes) && closes.length >= 2) {
-            priorRegularClose = closes[closes.length - 2]
-          } else if (meta.previousClose != null) {
+          let selectionMethod = 'none'
+
+          if (Array.isArray(closes) && Array.isArray(timestamps) && closes.length === timestamps.length) {
+            // Find the most recent candle with timestamp < preStart
+            const preStart = periods.pre?.start
+            if (preStart) {
+              for (let i = closes.length - 1; i >= 0; i--) {
+                if (timestamps[i] < preStart && closes[i] != null) {
+                  priorRegularClose = closes[i]
+                  selectionMethod = 'timestamp-before-preStart'
+                  break
+                }
+              }
+            }
+          }
+
+          // Fallback if timestamp lookup didn't find a value
+          if (priorRegularClose == null && Array.isArray(closes)) {
+            priorRegularClose = closes[closes.length - 1] ?? closes[closes.length - 2] ?? null
+            selectionMethod = 'fallback-last-or-secondLast'
+          }
+
+          // Final fallback to meta.previousClose
+          if (priorRegularClose == null && meta.previousClose != null) {
             priorRegularClose = meta.previousClose
+            selectionMethod = 'meta.previousClose'
             console.warn(
-              `[yahoo-proxy] ${ticker}: using meta.previousClose as fallback (closes length: ${Array.isArray(closes) ? closes.length : 'N/A'}). ` +
+              `[yahoo-proxy] ${ticker}: using meta.previousClose as final fallback (closes length: ${Array.isArray(closes) ? closes.length : 'N/A'}). ` +
               `Verify this is actual previous trading day close, not chart range start close.`
             )
           }
@@ -177,13 +206,17 @@ Deno.serve(async (req) => {
           }
 
           // DEBUG: Log priorRegularClose details
+          const preStart = periods.pre?.start
           console.error(
             `[yahoo-proxy] ${ticker} priorRegularClose sources:`,
             JSON.stringify({
               closesLength: Array.isArray(closes) ? closes.length : null,
-              closesLast2: Array.isArray(closes) && closes.length >= 2 ? [closes[closes.length - 2], closes[closes.length - 1]] : null,
+              timestampsLength: Array.isArray(timestamps) ? timestamps.length : null,
+              timestampsLast3: Array.isArray(timestamps) ? timestamps.slice(-3).map(t => new Date(t * 1000).toISOString().slice(0, 10)) : null,
+              preStartISO: preStart ? new Date(preStart * 1000).toISOString() : null,
               metaPreviousClose: meta.previousClose,
               selectedPriorRegularClose: priorRegularClose,
+              selectionMethod,
               rawCurrent: rawCurrent,
               price: price,
             })
@@ -215,12 +248,15 @@ Deno.serve(async (req) => {
             })
           )
 
-          // Part 2: For PRE state, fetch intraday data to extract pre-market price
+          // Part 2: For PRE/POST states, fetch intraday data
           let pre_market_price: number | null = null
           let pre_market_change_pct: number | null = null
+          let post_market_price: number | null = null
+          let post_market_change_pct: number | null = null
+          let intradayTimestamps: number[] = []
+          let intradayCloses: (number | null)[] = []
 
-          if (market_state === 'PRE' && !isTA) {
-            // Only fetch intraday for USD tickers during pre-market (TASE has no pre-market)
+          if ((market_state === 'PRE' || market_state === 'POST') && !isTA) {
             try {
               const intradayUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(ticker)}?interval=5m&range=1d&includePrePost=true`
               const intradayRes = await fetch(intradayUrl, { headers: { 'User-Agent': YAHOO_UA } })
@@ -228,55 +264,103 @@ Deno.serve(async (req) => {
               const intradayResult = intradayJson?.chart?.result?.[0]
 
               if (intradayResult) {
-                const timestamps: number[] = intradayResult?.timestamp ?? []
-                const intradayCloses: (number | null)[] = intradayResult?.indicators?.quote?.[0]?.close ?? []
-                const preStart = periods.pre?.start ?? 0
-                const preEnd = periods.pre?.end ?? 0
+                intradayTimestamps = intradayResult?.timestamp ?? []
+                intradayCloses = intradayResult?.indicators?.quote?.[0]?.close ?? []
 
-                // DEBUG: Log candle info
-                const inPreCandles = timestamps.filter(t => t >= preStart && t < preEnd)
-                console.error(
-                  `[yahoo-proxy] ${ticker} intraday fetch: candles=${timestamps.length}, preWindow=[${preStart}, ${preEnd}], candlesInPreWindow=${inPreCandles.length}`
-                )
+                // Extract pre-market data if in PRE state
+                if (market_state === 'PRE') {
+                  const preStart = periods.pre?.start ?? 0
+                  const preEnd = periods.pre?.end ?? 0
 
-                // Find most recent non-null close in pre-market window
-                for (let i = timestamps.length - 1; i >= 0; i--) {
-                  if (timestamps[i] >= preStart && timestamps[i] < preEnd && intradayCloses[i] != null) {
-                    pre_market_price = intradayCloses[i]!
-                    // Pre-market % change vs prior regular session close (from daily fetch, not intraday meta)
-                    if (priorRegularClose != null && priorRegularClose !== 0) {
-                      pre_market_change_pct = ((pre_market_price - priorRegularClose) / priorRegularClose) * 100
+                  // DEBUG: Log candle info
+                  const inPreCandles = intradayTimestamps.filter(t => t >= preStart && t < preEnd)
+                  console.error(
+                    `[yahoo-proxy] ${ticker} intraday fetch: candles=${intradayTimestamps.length}, preWindow=[${preStart}, ${preEnd}], candlesInPreWindow=${inPreCandles.length}`
+                  )
+
+                  // Find most recent non-null close in pre-market window
+                  for (let i = intradayTimestamps.length - 1; i >= 0; i--) {
+                    if (intradayTimestamps[i] >= preStart && intradayTimestamps[i] < preEnd && intradayCloses[i] != null) {
+                      pre_market_price = intradayCloses[i]!
+                      if (priorRegularClose != null && priorRegularClose !== 0) {
+                        pre_market_change_pct = ((pre_market_price - priorRegularClose) / priorRegularClose) * 100
+                      }
+
+                      console.error(
+                        `[yahoo-proxy] ${ticker} pre-market math:`,
+                        JSON.stringify({
+                          preMarketPrice: pre_market_price,
+                          priorRegularClose: priorRegularClose,
+                          diff: pre_market_price - (priorRegularClose ?? 0),
+                          pct: pre_market_change_pct,
+                          expectedSign: pre_market_price != null && priorRegularClose != null
+                            ? (pre_market_price > priorRegularClose ? 'positive' : pre_market_price < priorRegularClose ? 'negative' : 'zero')
+                            : 'n/a',
+                        })
+                      )
+                      break
                     }
+                  }
+                }
 
-                    // Diagnostic: verify the calculation
-                    console.error(
-                      `[yahoo-proxy] ${ticker} pre-market math:`,
-                      JSON.stringify({
-                        preMarketPrice: pre_market_price,
-                        priorRegularClose: priorRegularClose,
-                        diff: pre_market_price - (priorRegularClose ?? 0),
-                        pct: pre_market_change_pct,
-                        expectedSign: pre_market_price != null && priorRegularClose != null
-                          ? (pre_market_price > priorRegularClose ? 'positive' : pre_market_price < priorRegularClose ? 'negative' : 'zero')
-                          : 'n/a',
-                      })
-                    )
-                    break
+                // Extract post-market data if in POST state
+                if (market_state === 'POST') {
+                  const postStart = periods.post?.start ?? 0
+                  const postEnd = periods.post?.end ?? 0
+
+                  // Find today's regular close (most recent candle in regular window)
+                  let todayRegularClose: number | null = null
+                  const regStart = periods.regular?.start ?? 0
+                  const regEnd = periods.regular?.end ?? 0
+
+                  for (let i = intradayTimestamps.length - 1; i >= 0; i--) {
+                    if (intradayTimestamps[i] >= regStart && intradayTimestamps[i] < regEnd && intradayCloses[i] != null) {
+                      todayRegularClose = intradayCloses[i]!
+                      break
+                    }
+                  }
+
+                  // Find most recent non-null close in post-market window
+                  const inPostCandles = intradayTimestamps.filter(t => t >= postStart && t < postEnd)
+                  console.error(
+                    `[yahoo-proxy] ${ticker} post-market: candles=${intradayTimestamps.length}, postWindow=[${postStart}, ${postEnd}], candlesInPostWindow=${inPostCandles.length}, todayRegularClose=${todayRegularClose}`
+                  )
+
+                  for (let i = intradayTimestamps.length - 1; i >= 0; i--) {
+                    if (intradayTimestamps[i] >= postStart && intradayTimestamps[i] < postEnd && intradayCloses[i] != null) {
+                      post_market_price = intradayCloses[i]!
+                      if (todayRegularClose != null && todayRegularClose !== 0) {
+                        post_market_change_pct = ((post_market_price - todayRegularClose) / todayRegularClose) * 100
+                      }
+
+                      console.error(
+                        `[yahoo-proxy] ${ticker} post-market math:`,
+                        JSON.stringify({
+                          postMarketPrice: post_market_price,
+                          todayRegularClose: todayRegularClose,
+                          diff: post_market_price - (todayRegularClose ?? 0),
+                          pct: post_market_change_pct,
+                          expectedSign: post_market_price != null && todayRegularClose != null
+                            ? (post_market_price > todayRegularClose ? 'positive' : post_market_price < todayRegularClose ? 'negative' : 'zero')
+                            : 'n/a',
+                        })
+                      )
+                      break
+                    }
                   }
                 }
               }
             } catch (err) {
               console.warn(`[yahoo-proxy] Intraday fetch failed for ${ticker}:`, err)
-              // Continue without pre-market price if intraday fetch fails
             }
-          } else if (market_state !== 'PRE') {
-            // DEBUG: Log why we skipped intraday
+          } else if (market_state !== 'PRE' && market_state !== 'POST') {
             console.error(`[yahoo-proxy] ${ticker} SKIPPED intraday fetch because marketState=${market_state}`)
           }
 
           console.error(
             `[yahoo-proxy] ${ticker}: price=${price.toFixed(2)} daily=${daily_change_pct.toFixed(2)}%` +
-            ` preMarket=${pre_market_price?.toFixed(2) ?? 'n/a'} (${pre_market_change_pct?.toFixed(2) ?? 'n/a'}%) state=${market_state}`
+            ` preMarket=${pre_market_price?.toFixed(2) ?? 'n/a'} (${pre_market_change_pct?.toFixed(2) ?? 'n/a'}%)` +
+            ` postMarket=${post_market_price?.toFixed(2) ?? 'n/a'} (${post_market_change_pct?.toFixed(2) ?? 'n/a'}%) state=${market_state}`
           )
 
           return {
@@ -285,6 +369,8 @@ Deno.serve(async (req) => {
             daily_change_pct,
             pre_market_price,
             pre_market_change_pct,
+            post_market_price,
+            post_market_change_pct,
             market_state,
             fetched_at: new Date().toISOString(),
           } satisfies CacheRow
@@ -305,6 +391,8 @@ Deno.serve(async (req) => {
             daily_change_pct:      outcome.value.daily_change_pct,
             pre_market_price:      outcome.value.pre_market_price,
             pre_market_change_pct: outcome.value.pre_market_change_pct,
+            post_market_price:     outcome.value.post_market_price,
+            post_market_change_pct: outcome.value.post_market_change_pct,
             market_state:          outcome.value.market_state,
           })
         } else {
