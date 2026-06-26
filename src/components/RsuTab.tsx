@@ -2,8 +2,10 @@ import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { estimateTaxIL } from '../lib/tax'
 import { useUserProfile } from '../lib/useUserProfile'
+import { useTickerHistory } from '../lib/hooks/useTickerHistory'
 import DrillDownPanel from './DrillDownPanel'
 import type { PriceMap, PriceEntry, ErrorEntry } from '../lib/prices'
+import { Sparkline } from './Sparkline'
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -80,9 +82,12 @@ interface RsuTabProps {
 }
 
 export default function RsuTab({ prices = {}, onFetchPrices }: RsuTabProps) {
-  const { profile } = useUserProfile()
+  const { profile, isPremium } = useUserProfile()
   // ── Data state ──
   const [grants, setGrants] = useState<RsuGrant[]>([])
+
+  const visibleTickers = grants.map((g) => g.ticker)
+  const { histories } = useTickerHistory(isPremium ? visibleTickers : [])
   const [loading, setLoading] = useState(true)
   const [userId, setUserId] = useState<string | null>(null)
   const [fxRates, setFxRates] = useState<{ USD_NIS: number; [key: string]: number }>({ USD_NIS: 3.75 })
@@ -433,21 +438,24 @@ export default function RsuTab({ prices = {}, onFetchPrices }: RsuTabProps) {
           </button>
         </div>
       ) : (
-        <div className="overflow-x-auto rounded-xl border border-gray-800">
+        <div className="max-h-[80vh] overflow-x-auto overflow-y-auto rounded-xl border border-gray-800">
           <table className="w-full text-sm">
             <thead className="bg-gray-900 text-gray-400">
-              <tr>
-                <th className="px-4 py-3 text-left font-medium">Ticker</th>
-                <th className="px-4 py-3 text-left font-medium">Grant Date</th>
-                <th className="px-4 py-3 text-left font-medium">Vest Date</th>
-                <th className="px-4 py-3 text-right font-medium">Qty</th>
-                <th className="px-4 py-3 text-right font-medium">Grant Price</th>
-                <th className="px-4 py-3 text-right font-medium">Current Price</th>
-                <th className="px-4 py-3 text-right font-medium">Gross Value</th>
-                <th className="px-4 py-3 text-right font-medium">Est Tax</th>
-                <th className="px-4 py-3 text-right font-medium">Net Value</th>
-                <th className="px-4 py-3 text-right font-medium">Days to Vest</th>
-                <th className="px-4 py-3 text-center font-medium">Action</th>
+              <tr className="sticky top-0 z-50">
+                <th className="sticky left-0 z-30 px-4 py-3 text-left font-medium bg-gray-950">Ticker</th>
+                <th className="z-20 bg-gray-950 px-4 py-3 text-left font-medium">Grant Date</th>
+                <th className="z-20 bg-gray-950 px-4 py-3 text-left font-medium">Vest Date</th>
+                <th className="z-20 bg-gray-950 px-4 py-3 text-right font-medium">Qty</th>
+                <th className="z-20 bg-gray-950 px-4 py-3 text-right font-medium">Grant Price</th>
+                <th className="z-20 bg-gray-950 px-4 py-3 text-right font-medium">Current Price</th>
+                {isPremium && (
+                  <th className="z-20 bg-gray-950 px-4 py-3 text-right font-medium text-gray-400">30d</th>
+                )}
+                <th className="z-20 bg-gray-950 px-4 py-3 text-right font-medium">Gross Value</th>
+                <th className="z-20 bg-gray-950 px-4 py-3 text-right font-medium">Est Tax</th>
+                <th className="z-20 bg-gray-950 px-4 py-3 text-right font-medium">Net Value</th>
+                <th className="z-20 bg-gray-950 px-4 py-3 text-right font-medium">Days to Vest</th>
+                <th className="z-20 bg-gray-950 px-4 py-3 text-center font-medium">Action</th>
               </tr>
             </thead>
             <tbody>
@@ -477,9 +485,9 @@ export default function RsuTab({ prices = {}, onFetchPrices }: RsuTabProps) {
                 const isExpanded = expandedGrantId === grant.id
 
                 return (
-                  <tr key={grant.id} className={`border-t border-gray-800 transition-colors ${statusColor} ${i % 2 === 0 ? '' : 'bg-gray-900/20'}`}>
+                  <tr key={grant.id} className={`group border-t border-gray-800 transition-colors ${statusColor} ${i % 2 === 0 ? '' : 'bg-gray-900/20'}`}>
                     <td
-                      className="px-4 py-3 whitespace-nowrap font-mono font-semibold cursor-pointer hover:text-blue-400 transition-colors"
+                      className="sticky left-0 z-10 px-4 py-3 whitespace-nowrap font-mono font-semibold cursor-pointer hover:text-blue-400 bg-gray-950 transition-colors"
                       onClick={() => setSelectedGrant(grant)}
                     >
                       {grant.ticker}
@@ -498,6 +506,11 @@ export default function RsuTab({ prices = {}, onFetchPrices }: RsuTabProps) {
                     <td className="px-4 py-3 text-right tabular-nums text-white">
                       {formatCurrency(currentPrice, grant.grant_currency)}
                     </td>
+                    {isPremium && (
+                      <td className="px-4 py-3 text-right">
+                        <Sparkline closes={histories[grant.ticker]} />
+                      </td>
+                    )}
                     <td className="px-4 py-3 text-right tabular-nums">${grossValue.toLocaleString(undefined, { maximumFractionDigits: 2 })}</td>
                     <td className="px-4 py-3 text-right tabular-nums text-orange-300">${taxEst.estimatedTax.toLocaleString(undefined, { maximumFractionDigits: 2 })}</td>
                     <td className="px-4 py-3 text-right tabular-nums font-medium text-green-300">${netValue.toLocaleString(undefined, { maximumFractionDigits: 2 })}</td>
