@@ -358,7 +358,7 @@ export default function DrillDownPanel({ holding, watchlistTicker, priceEntry, o
     <>
       {/* Backdrop — click outside to close */}
       <div
-        className={`fixed inset-0 bg-black/60 z-30 transition-opacity duration-300 ${
+        className={`fixed inset-0 bg-black/60 z-50 transition-opacity duration-300 ${
           isVisible ? 'opacity-100' : 'opacity-0'
         }`}
         onClick={handleClose}
@@ -368,7 +368,7 @@ export default function DrillDownPanel({ holding, watchlistTicker, priceEntry, o
       {/* Panel */}
       <div
         ref={panelRef}
-        className={`fixed right-0 top-0 h-full w-full sm:w-[480px] z-40 bg-gray-950 border-l border-gray-800
+        className={`fixed right-0 top-0 h-full w-full sm:w-[480px] z-[51] bg-gray-950 border-l border-gray-800
           flex flex-col transform transition-transform duration-300 ease-out
           ${isVisible ? 'translate-x-0' : 'translate-x-full'}`}
         role="dialog"
